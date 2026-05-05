@@ -36,6 +36,7 @@ pub const VulkanInfo = c.ImpellerContextVulkanInfo;
 pub const VulkanSettings = c.ImpellerContextVulkanSettings;
 
 pub const Color = c.ImpellerColor;
+pub const ImageFilterHandle = c.ImpellerImageFilter;
 
 /// Creates an sRGB color value for Impeller drawing APIs.
 pub fn srgb(red: f32, green: f32, blue: f32, alpha: f32) Color {
@@ -112,6 +113,11 @@ pub const Paint = struct {
         self.handle = null;
     }
 
+    /// Returns the underlying Impeller paint handle.
+    pub fn raw(self: Paint) c.ImpellerPaint {
+        return self.handle;
+    }
+
     /// Sets the paint color.
     pub fn setColor(self: Paint, color: Color) void {
         var local_color = color;
@@ -134,6 +140,27 @@ pub const Paint = struct {
     }
 };
 
+pub const ImageFilter = struct {
+    handle: c.ImpellerImageFilter,
+
+    /// Creates a Gaussian blur image filter.
+    pub fn initBlur(x_sigma: f32, y_sigma: f32, tile_mode: TileMode) ?ImageFilter {
+        const handle = c.ImpellerImageFilterCreateBlurNew(x_sigma, y_sigma, tile_mode) orelse return null;
+        return .{ .handle = handle };
+    }
+
+    /// Releases this image filter reference.
+    pub fn deinit(self: *ImageFilter) void {
+        c.ImpellerImageFilterRelease(self.handle);
+        self.handle = null;
+    }
+
+    /// Returns the underlying Impeller image filter handle.
+    pub fn raw(self: ImageFilter) c.ImpellerImageFilter {
+        return self.handle;
+    }
+};
+
 pub const DisplayList = struct {
     handle: c.ImpellerDisplayList,
 
@@ -150,8 +177,8 @@ pub const DisplayListBuilder = struct {
     /// Creates a display list builder with an optional cull rect.
     pub fn init(cull_rect: ?Rect) Error!DisplayListBuilder {
         var local_rect = cull_rect;
-        const rect_ptr = if (local_rect) |*rect| rect else null;
-        const handle = c.ImpellerDisplayListBuilderNew(rect_ptr) orelse return Error.CreateDisplayListBuilderFailed;
+        const cull_rect_ptr = if (local_rect) |*cull_rect_value| cull_rect_value else null;
+        const handle = c.ImpellerDisplayListBuilderNew(cull_rect_ptr) orelse return Error.CreateDisplayListBuilderFailed;
         return .{ .handle = handle };
     }
 
@@ -168,14 +195,61 @@ pub const DisplayListBuilder = struct {
     }
 
     /// Draws a rectangle into the display list.
-    pub fn drawRect(self: DisplayListBuilder, rect: Rect, paint: Paint) void {
-        var local_rect = rect;
+    pub fn drawRect(self: DisplayListBuilder, rectangle: Rect, paint: Paint) void {
+        var local_rect = rectangle;
         c.ImpellerDisplayListBuilderDrawRect(self.handle, &local_rect, paint.handle);
     }
 
     /// Draws a paint over the current clip.
     pub fn drawPaint(self: DisplayListBuilder, paint: Paint) void {
         c.ImpellerDisplayListBuilderDrawPaint(self.handle, paint.handle);
+    }
+
+    /// Saves the current clip and transform state.
+    pub fn save(self: DisplayListBuilder) void {
+        c.ImpellerDisplayListBuilderSave(self.handle);
+    }
+
+    /// Saves a new layer with optional paint and backdrop filtering.
+    pub fn saveLayer(self: DisplayListBuilder, bounds: Rect, paint: ?Paint, backdrop: ?ImageFilter) void {
+        var local_bounds = bounds;
+        c.ImpellerDisplayListBuilderSaveLayer(
+            self.handle,
+            &local_bounds,
+            if (paint) |value| value.raw() else null,
+            if (backdrop) |value| value.raw() else null,
+        );
+    }
+
+    /// Returns the current save stack depth.
+    pub fn getSaveCount(self: DisplayListBuilder) u32 {
+        return c.ImpellerDisplayListBuilderGetSaveCount(self.handle);
+    }
+
+    /// Restores the save stack until it reaches the requested depth.
+    pub fn restoreToCount(self: DisplayListBuilder, count: u32) void {
+        c.ImpellerDisplayListBuilderRestoreToCount(self.handle, count);
+    }
+
+    /// Restores the last saved clip and transform state.
+    pub fn restore(self: DisplayListBuilder) void {
+        c.ImpellerDisplayListBuilderRestore(self.handle);
+    }
+
+    /// Clips subsequent drawing operations to a rectangle.
+    pub fn clipRect(self: DisplayListBuilder, rectangle: Rect, operation: ClipOperation) void {
+        var local_rect = rectangle;
+        c.ImpellerDisplayListBuilderClipRect(self.handle, &local_rect, operation);
+    }
+
+    /// Applies a scale transform to the current transform.
+    pub fn scale(self: DisplayListBuilder, x: f32, y: f32) void {
+        c.ImpellerDisplayListBuilderScale(self.handle, x, y);
+    }
+
+    /// Applies a rotation transform in degrees to the current transform.
+    pub fn rotate(self: DisplayListBuilder, degrees: f32) void {
+        c.ImpellerDisplayListBuilderRotate(self.handle, degrees);
     }
 
     /// Applies a translation to the current transform.
@@ -210,6 +284,15 @@ pub const Surface = struct {
         if (!c.ImpellerSurfacePresent(self.handle)) return Error.PresentFailed;
     }
 };
+
+pub fn rect(x: f32, y: f32, width: f32, height: f32) Rect {
+    return .{
+        .x = x,
+        .y = y,
+        .width = width,
+        .height = height,
+    };
+}
 
 pub const VulkanSwapchain = struct {
     handle: c.ImpellerVulkanSwapchain,

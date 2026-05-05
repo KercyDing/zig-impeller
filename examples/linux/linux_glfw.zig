@@ -3,7 +3,6 @@ const build_options = @import("build_options");
 const impeller = @import("impeller");
 const glfw = @import("glfw_c");
 
-const c = impeller.c;
 const glfw_platform = build_options.glfw;
 
 const ExampleError = error{
@@ -13,7 +12,6 @@ const ExampleError = error{
     VulkanInfoUnavailable,
     PresentationUnsupported,
     SurfaceCreateFailed,
-    DisplayListCreateFailed,
 };
 
 pub fn main() !void {
@@ -60,8 +58,8 @@ pub fn main() !void {
     var swapchain = try impeller.VulkanSwapchain.init(context, @ptrCast(vulkan_surface));
     defer swapchain.deinit();
 
-    const display_list = createDisplayList() orelse return ExampleError.DisplayListCreateFailed;
-    defer c.ImpellerDisplayListRelease(display_list);
+    var display_list = try createDisplayList();
+    defer display_list.deinit();
 
     while (glfw.glfwWindowShouldClose(window) == glfw.GLFW_FALSE) {
         glfw.glfwPollEvents();
@@ -73,46 +71,67 @@ pub fn main() !void {
         var surface = swapchain.acquireNextSurface() catch continue;
         defer surface.deinit();
 
-        _ = c.ImpellerSurfaceDrawDisplayList(surface.handle, display_list);
-        _ = c.ImpellerSurfacePresent(surface.handle);
+        try surface.draw(display_list);
+        try surface.present();
     }
 }
 
-fn createDisplayList() ?c.ImpellerDisplayList {
-    const builder = c.ImpellerDisplayListBuilderNew(null) orelse return null;
-    defer c.ImpellerDisplayListBuilderRelease(builder);
+fn createDisplayList() !impeller.DisplayList {
+    var builder = try impeller.DisplayListBuilder.init(null);
+    defer builder.deinit();
 
-    const paint = c.ImpellerPaintNew() orelse return null;
-    defer c.ImpellerPaintRelease(paint);
+    var paint = try impeller.Paint.init();
+    defer paint.deinit();
 
-    var clear_color = c.ImpellerColor{
-        .red = 1.0,
-        .green = 1.0,
-        .blue = 1.0,
-        .alpha = 1.0,
-        .color_space = c.kImpellerColorSpaceSRGB,
-    };
-    c.ImpellerPaintSetColor(paint, &clear_color);
-    c.ImpellerDisplayListBuilderDrawPaint(builder, paint);
+    var blur = impeller.ImageFilter.initBlur(10.0, 10.0, impeller.c.kImpellerTileModeDecal);
+    defer if (blur) |*value| value.deinit();
 
-    var box_color = c.ImpellerColor{
-        .red = 1.0,
-        .green = 0.0,
-        .blue = 0.0,
-        .alpha = 1.0,
-        .color_space = c.kImpellerColorSpaceSRGB,
-    };
-    c.ImpellerPaintSetColor(paint, &box_color);
+    paint.setColor(impeller.srgb(1.0, 1.0, 1.0, 1.0));
+    builder.drawPaint(paint);
 
-    var box_rect = c.ImpellerRect{
-        .x = 10,
-        .y = 10,
-        .width = 100,
-        .height = 100,
-    };
-    c.ImpellerDisplayListBuilderDrawRect(builder, &box_rect, paint);
+    paint.setColor(impeller.srgb(1.0, 0.0, 0.0, 1.0));
+    builder.save();
+    builder.clipRect(
+        impeller.rect(20, 20, 60, 100),
+        impeller.c.kImpellerClipOperationIntersect,
+    );
+    builder.drawRect(impeller.rect(20, 20, 100, 100), paint);
+    builder.restore();
 
-    return c.ImpellerDisplayListBuilderCreateDisplayListNew(builder);
+    paint.setColor(impeller.srgb(0.0, 0.2, 1.0, 1.0));
+    builder.save();
+    builder.translate(220, 120);
+    builder.rotate(45.0);
+    builder.drawRect(impeller.rect(-40, -40, 80, 80), paint);
+    builder.restore();
+
+    paint.setColor(impeller.srgb(0.0, 0.7, 0.2, 1.0));
+    builder.save();
+    builder.translate(360, 120);
+    builder.scale(1.6, 0.6);
+    builder.drawRect(impeller.rect(-40, -40, 80, 80), paint);
+    builder.restore();
+
+    const layer_base_count = builder.getSaveCount();
+    builder.save();
+    builder.translate(520, 80);
+    const layer_count = builder.getSaveCount();
+    builder.saveLayer(
+        impeller.rect(-10, -10, 140, 140),
+        null,
+        if (blur) |value| value else null,
+    );
+
+    paint.setColor(impeller.srgb(0.1, 0.1, 0.1, 0.35));
+    builder.drawRect(impeller.rect(24, 24, 72, 72), paint);
+
+    paint.setColor(impeller.srgb(1.0, 0.7, 0.0, 1.0));
+    builder.drawRect(impeller.rect(0, 0, 72, 72), paint);
+
+    builder.restoreToCount(layer_count);
+    builder.restoreToCount(layer_base_count);
+
+    return builder.build();
 }
 
 fn configureGlfwPlatform() void {
