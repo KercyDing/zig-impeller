@@ -58,6 +58,8 @@ pub fn main() !void {
     var swapchain = try impeller.VulkanSwapchain.init(context, @ptrCast(vulkan_surface));
     defer swapchain.deinit();
 
+    const font_bytes = try loadFontBytes();
+
     var texture_bytes = [_]u8{
         255, 0, 0, 255, 255, 255, 0, 255, 0, 255, 0, 255, 0, 0, 0, 255,
         255, 255, 255, 255, 255, 0, 255, 255, 0, 255, 255, 255, 255, 128, 0, 255,
@@ -77,7 +79,7 @@ pub fn main() !void {
     checker_texture.retain();
     defer checker_texture.deinit();
 
-    var display_list = try createDisplayList(checker_texture);
+    var display_list = try createDisplayList(checker_texture, font_bytes);
     defer display_list.deinit();
 
     while (glfw.glfwWindowShouldClose(window) == glfw.GLFW_FALSE) {
@@ -95,7 +97,13 @@ pub fn main() !void {
     }
 }
 
-fn createDisplayList(checker_texture: impeller.Texture) !impeller.DisplayList {
+fn loadFontBytes() ![]const u8 {
+    const font_path = "examples/fonts/NotoSans-Regular.ttf";
+    const io = std.Options.debug_io;
+    return try std.Io.Dir.cwd().readFileAlloc(io, font_path, std.heap.page_allocator, .limited(std.math.maxInt(usize)));
+}
+
+fn createDisplayList(checker_texture: impeller.Texture, font_bytes: []const u8) !impeller.DisplayList {
     var builder = try impeller.DisplayListBuilder.init(null);
     defer builder.deinit();
 
@@ -145,6 +153,36 @@ fn createDisplayList(checker_texture: impeller.Texture) !impeller.DisplayList {
 
     var reused_display_list = try createReusableDisplayList();
     defer reused_display_list.deinit();
+
+    var typography_context = try impeller.TypographyContext.init();
+    defer typography_context.deinit();
+    try typography_context.registerFont(impeller.mapping(font_bytes), "Noto Sans");
+
+    var paragraph_foreground = try impeller.Paint.init();
+    defer paragraph_foreground.deinit();
+    paragraph_foreground.setColor(impeller.srgb(0.12, 0.12, 0.12, 1.0));
+
+    var paragraph_style = try impeller.ParagraphStyle.init();
+    defer paragraph_style.deinit();
+    paragraph_style.setForeground(paragraph_foreground);
+    paragraph_style.setFontFamily("Noto Sans");
+    paragraph_style.setFontSize(18.0);
+    paragraph_style.setFontWeight(impeller.c.kImpellerFontWeight700);
+    paragraph_style.setTextAlignment(impeller.c.kImpellerTextAlignmentLeft);
+    paragraph_style.setTextDirection(impeller.c.kImpellerTextDirectionLTR);
+    paragraph_style.setHeight(1.1);
+    paragraph_style.setMaxLines(2);
+    paragraph_style.setEllipsis("...");
+
+    var paragraph_builder = try impeller.ParagraphBuilder.init(typography_context);
+    defer paragraph_builder.deinit();
+    paragraph_builder.pushStyle(paragraph_style);
+    paragraph_builder.addText("Impeller paragraph");
+    paragraph_builder.addText(" wraps on Linux.");
+    paragraph_builder.popStyle();
+
+    var paragraph = try paragraph_builder.build(170.0);
+    defer paragraph.deinit();
 
     var triangle_builder = try impeller.PathBuilder.init();
     defer triangle_builder.deinit();
@@ -346,6 +384,86 @@ fn createDisplayList(checker_texture: impeller.Texture) !impeller.DisplayList {
         impeller.uniformRadii(6.0),
         paint,
     );
+
+    const gradient_colors = [_]impeller.Color{
+        impeller.srgb(1.0, 0.25, 0.25, 1.0),
+        impeller.srgb(1.0, 0.95, 0.2, 1.0),
+        impeller.srgb(0.2, 0.75, 1.0, 1.0),
+    };
+    const gradient_stops = [_]f32{ 0.0, 0.5, 1.0 };
+    var linear_gradient = try impeller.ColorSource.initLinearGradient(
+        impeller.point(40.0, 520.0),
+        impeller.point(140.0, 576.0),
+        gradient_colors[0..],
+        gradient_stops[0..],
+        impeller.c.kImpellerTileModeClamp,
+        null,
+    );
+    defer linear_gradient.deinit();
+    linear_gradient.retain();
+    defer linear_gradient.deinit();
+
+    var radial_gradient = try impeller.ColorSource.initRadialGradient(
+        impeller.point(230.0, 548.0),
+        52.0,
+        gradient_colors[0..],
+        gradient_stops[0..],
+        impeller.c.kImpellerTileModeClamp,
+        null,
+    );
+    defer radial_gradient.deinit();
+
+    var image_color_source = try impeller.ColorSource.initImage(
+        checker_texture,
+        impeller.c.kImpellerTileModeRepeat,
+        impeller.c.kImpellerTileModeRepeat,
+        impeller.c.kImpellerTextureSamplingNearestNeighbor,
+        scaleMatrix(6.0, 6.0),
+    );
+    defer image_color_source.deinit();
+
+    paint = try impeller.Paint.init();
+    defer paint.deinit();
+    paint.setColorSource(linear_gradient);
+    builder.drawRoundedRect(
+        impeller.rect(40.0, 520.0, 100.0, 56.0),
+        impeller.uniformRadii(16.0),
+        paint,
+    );
+
+    paint = try impeller.Paint.init();
+    defer paint.deinit();
+    paint.setColorSource(radial_gradient);
+    builder.drawOval(impeller.rect(180.0, 516.0, 100.0, 64.0), paint);
+
+    paint = try impeller.Paint.init();
+    defer paint.deinit();
+    paint.setColorSource(image_color_source);
+    builder.drawRoundedRect(
+        impeller.rect(320.0, 520.0, 120.0, 56.0),
+        impeller.uniformRadii(16.0),
+        paint,
+    );
+
+    paint = try impeller.Paint.init();
+    defer paint.deinit();
+    paint.setColor(impeller.srgb(0.08, 0.08, 0.08, 1.0));
+    paint.setDrawStyle(impeller.c.kImpellerDrawStyleStroke);
+    paint.setStrokeWidth(14.0);
+    paint.setStrokeCap(impeller.c.kImpellerStrokeCapRound);
+    paint.setStrokeJoin(impeller.c.kImpellerStrokeJoinRound);
+    paint.setStrokeMiter(2.0);
+    builder.drawPath(arc_path, paint);
+
+    paint = try impeller.Paint.init();
+    defer paint.deinit();
+    paint.setColor(impeller.srgb(0.92, 0.95, 1.0, 1.0));
+    builder.drawRoundedRect(
+        impeller.rect(580.0, 508.0, 190.0, 78.0),
+        impeller.uniformRadii(14.0),
+        paint,
+    );
+    builder.drawParagraph(paragraph, impeller.point(592.0, 522.0));
 
     paint = try impeller.Paint.init();
     defer paint.deinit();
