@@ -44,6 +44,8 @@ pub const FontWeight = c.ImpellerFontWeight;
 pub const FontStyle = c.ImpellerFontStyle;
 pub const TextAlignment = c.ImpellerTextAlignment;
 pub const TextDirection = c.ImpellerTextDirection;
+pub const TextDecorationType = c.ImpellerTextDecorationType;
+pub const TextDecorationStyle = c.ImpellerTextDecorationStyle;
 
 pub const Point = c.ImpellerPoint;
 pub const Size = c.ImpellerSize;
@@ -109,6 +111,11 @@ pub const Context = struct {
         return .{ .handle = handle };
     }
 
+    /// Retains this context reference.
+    pub fn retain(self: Context) void {
+        c.ImpellerContextRetain(self.handle);
+    }
+
     /// Releases this context reference.
     pub fn deinit(self: *Context) void {
         c.ImpellerContextRelease(self.handle);
@@ -130,6 +137,11 @@ pub const Paint = struct {
     pub fn init() Error!Paint {
         const handle = c.ImpellerPaintNew() orelse return Error.CreatePaintFailed;
         return .{ .handle = handle };
+    }
+
+    /// Retains this paint reference.
+    pub fn retain(self: Paint) void {
+        c.ImpellerPaintRetain(self.handle);
     }
 
     /// Releases this paint reference.
@@ -558,6 +570,11 @@ pub const MaskFilter = struct {
 pub const Path = struct {
     handle: c.ImpellerPath,
 
+    /// Retains this path reference.
+    pub fn retain(self: Path) void {
+        c.ImpellerPathRetain(self.handle);
+    }
+
     /// Releases this path reference.
     pub fn deinit(self: *Path) void {
         c.ImpellerPathRelease(self.handle);
@@ -584,6 +601,11 @@ pub const PathBuilder = struct {
     pub fn init() Error!PathBuilder {
         const handle = c.ImpellerPathBuilderNew() orelse return Error.CreatePathBuilderFailed;
         return .{ .handle = handle };
+    }
+
+    /// Retains this path builder reference.
+    pub fn retain(self: PathBuilder) void {
+        c.ImpellerPathBuilderRetain(self.handle);
     }
 
     /// Releases this path builder reference.
@@ -665,6 +687,11 @@ pub const PathBuilder = struct {
 pub const DisplayList = struct {
     handle: c.ImpellerDisplayList,
 
+    /// Retains this display list reference.
+    pub fn retain(self: DisplayList) void {
+        c.ImpellerDisplayListRetain(self.handle);
+    }
+
     /// Releases this display list reference.
     pub fn deinit(self: *DisplayList) void {
         c.ImpellerDisplayListRelease(self.handle);
@@ -683,6 +710,11 @@ pub const DisplayListBuilder = struct {
         return .{ .handle = handle };
     }
 
+    /// Retains this display list builder reference.
+    pub fn retain(self: DisplayListBuilder) void {
+        c.ImpellerDisplayListBuilderRetain(self.handle);
+    }
+
     /// Releases this display list builder reference.
     pub fn deinit(self: *DisplayListBuilder) void {
         c.ImpellerDisplayListBuilderRelease(self.handle);
@@ -693,6 +725,20 @@ pub const DisplayListBuilder = struct {
     pub fn build(self: DisplayListBuilder) Error!DisplayList {
         const handle = c.ImpellerDisplayListBuilderCreateDisplayListNew(self.handle) orelse return Error.CreateDisplayListFailed;
         return .{ .handle = handle };
+    }
+
+    /// Draws a line segment into the display list.
+    pub fn drawLine(self: DisplayListBuilder, from: Point, to: Point, paint: Paint) void {
+        var local_from = from;
+        var local_to = to;
+        c.ImpellerDisplayListBuilderDrawLine(self.handle, &local_from, &local_to, paint.handle);
+    }
+
+    /// Draws a dashed line segment into the display list.
+    pub fn drawDashedLine(self: DisplayListBuilder, from: Point, to: Point, on_length: f32, off_length: f32, paint: Paint) void {
+        var local_from = from;
+        var local_to = to;
+        c.ImpellerDisplayListBuilderDrawDashedLine(self.handle, &local_from, &local_to, on_length, off_length, paint.handle);
     }
 
     /// Draws a rectangle into the display list.
@@ -740,6 +786,26 @@ pub const DisplayListBuilder = struct {
     /// Draws the specified shape.
     pub fn drawPath(self: DisplayListBuilder, path: Path, paint: Paint) void {
         c.ImpellerDisplayListBuilderDrawPath(self.handle, path.raw(), paint.handle);
+    }
+
+    /// Draws a drop shadow for the specified path.
+    pub fn drawShadow(
+        self: DisplayListBuilder,
+        path: Path,
+        color: Color,
+        elevation: f32,
+        occluder_is_transparent: bool,
+        device_pixel_ratio: f32,
+    ) void {
+        var local_color = color;
+        c.ImpellerDisplayListBuilderDrawShadow(
+            self.handle,
+            path.raw(),
+            &local_color,
+            elevation,
+            occluder_is_transparent,
+            device_pixel_ratio,
+        );
     }
 
     /// Flattens another display list into this one.
@@ -834,6 +900,24 @@ pub const DisplayListBuilder = struct {
         c.ImpellerDisplayListBuilderClipRect(self.handle, &local_rect, operation);
     }
 
+    /// Clips subsequent drawing operations to an oval.
+    pub fn clipOval(self: DisplayListBuilder, oval_bounds: Rect, operation: ClipOperation) void {
+        var local_rect = oval_bounds;
+        c.ImpellerDisplayListBuilderClipOval(self.handle, &local_rect, operation);
+    }
+
+    /// Clips subsequent drawing operations to a rounded rectangle.
+    pub fn clipRoundedRect(self: DisplayListBuilder, rectangle: Rect, radii: RoundingRadii, operation: ClipOperation) void {
+        var local_rect = rectangle;
+        var local_radii = radii;
+        c.ImpellerDisplayListBuilderClipRoundedRect(self.handle, &local_rect, &local_radii, operation);
+    }
+
+    /// Clips subsequent drawing operations to a path.
+    pub fn clipPath(self: DisplayListBuilder, path: Path, operation: ClipOperation) void {
+        c.ImpellerDisplayListBuilderClipPath(self.handle, path.raw(), operation);
+    }
+
     /// Applies a scale transform to the current transform.
     pub fn scale(self: DisplayListBuilder, x: f32, y: f32) void {
         c.ImpellerDisplayListBuilderScale(self.handle, x, y);
@@ -882,6 +966,11 @@ pub const Surface = struct {
         var local_size = size;
         const handle = c.ImpellerSurfaceCreateWrappedFBONew(context.handle, fbo, format, &local_size) orelse return Error.AcquireSurfaceFailed;
         return .{ .handle = handle };
+    }
+
+    /// Retains this surface reference.
+    pub fn retain(self: Surface) void {
+        c.ImpellerSurfaceRetain(self.handle);
     }
 
     /// Releases this surface reference.
@@ -964,6 +1053,11 @@ pub const VulkanSwapchain = struct {
     pub fn init(context: Context, vulkan_surface_khr: *anyopaque) Error!VulkanSwapchain {
         const handle = c.ImpellerVulkanSwapchainCreateNew(context.handle, vulkan_surface_khr) orelse return Error.CreateVulkanSwapchainFailed;
         return .{ .handle = handle };
+    }
+
+    /// Retains this Vulkan swapchain reference.
+    pub fn retain(self: VulkanSwapchain) void {
+        c.ImpellerVulkanSwapchainRetain(self.handle);
     }
 
     /// Releases this Vulkan swapchain reference.

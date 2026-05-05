@@ -250,6 +250,31 @@ fn createDisplayList(checker_texture: impeller.Texture, font_bytes: []const u8) 
     builder.drawRect(impeller.rect(20, 20, 100, 100), paint);
     builder.restore();
 
+    paint.setColor(impeller.srgb(0.05, 0.65, 0.95, 1.0));
+    builder.save();
+    builder.clipOval(
+        impeller.rect(96.0, 18.0, 72.0, 72.0),
+        impeller.c.kImpellerClipOperationIntersect,
+    );
+    builder.drawRect(impeller.rect(88.0, 10.0, 88.0, 88.0), paint);
+    builder.restore();
+
+    paint.setColor(impeller.srgb(0.95, 0.6, 0.15, 1.0));
+    builder.save();
+    builder.clipRoundedRect(
+        impeller.rect(180.0, 20.0, 92.0, 72.0),
+        impeller.uniformRadii(18.0),
+        impeller.c.kImpellerClipOperationIntersect,
+    );
+    builder.drawRect(impeller.rect(168.0, 8.0, 116.0, 96.0), paint);
+    builder.restore();
+
+    paint.setColor(impeller.srgb(0.9, 0.25, 0.55, 1.0));
+    builder.save();
+    builder.clipPath(triangle_path, impeller.c.kImpellerClipOperationIntersect);
+    builder.drawRect(impeller.rect(450.0, 236.0, 92.0, 92.0), paint);
+    builder.restore();
+
     paint.setColor(impeller.srgb(0.0, 0.2, 1.0, 1.0));
     builder.save();
     builder.translate(220, 120);
@@ -454,6 +479,35 @@ fn createDisplayList(checker_texture: impeller.Texture, font_bytes: []const u8) 
     paint.setStrokeJoin(impeller.c.kImpellerStrokeJoinRound);
     paint.setStrokeMiter(2.0);
     builder.drawPath(arc_path, paint);
+
+    paint = try impeller.Paint.init();
+    defer paint.deinit();
+    paint.setColor(impeller.srgb(0.18, 0.18, 0.18, 1.0));
+    paint.setDrawStyle(impeller.c.kImpellerDrawStyleStroke);
+    paint.setStrokeWidth(8.0);
+    paint.setStrokeCap(impeller.c.kImpellerStrokeCapRound);
+    builder.drawLine(
+        impeller.point(470.0, 520.0),
+        impeller.point(560.0, 560.0),
+        paint,
+    );
+
+    paint.setColor(impeller.srgb(0.95, 0.3, 0.2, 1.0));
+    builder.drawDashedLine(
+        impeller.point(470.0, 560.0),
+        impeller.point(560.0, 520.0),
+        12.0,
+        8.0,
+        paint,
+    );
+
+    builder.drawShadow(
+        rounded_rect_path,
+        impeller.srgb(0.05, 0.1, 0.2, 0.45),
+        18.0,
+        false,
+        1.0,
+    );
 
     paint = try impeller.Paint.init();
     defer paint.deinit();
