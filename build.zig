@@ -62,41 +62,48 @@ fn addModule(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk) *std.Build.
 
 fn addExample(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk, mod: *std.Build.Module) *std.Build.Step.Compile {
     return switch (options.example) {
-        .macos => addMacosMetalExample(b, options, sdk, mod),
+        .macos => addMacosGlfwExample(b, options, sdk, mod),
         .linux => addLinuxGlfwExample(b, options, sdk, mod),
     };
 }
 
-fn addMacosMetalExample(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk, mod: *std.Build.Module) *std.Build.Step.Compile {
+fn addMacosGlfwExample(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk, mod: *std.Build.Module) *std.Build.Step.Compile {
     if (options.target.result.os.tag != .macos) {
         @panic("-Dexample=macos requires a macOS target");
     }
 
+    const glfw_dep = b.dependency("glfw_zig", .{
+        .target = options.target,
+        .optimize = options.optimize,
+    });
+    const glfw_c = addGlfwBindings(b, options, glfw_dep, .macos);
+    const glfw_lib = glfw_dep.artifact("glfw");
+
     const example_mod = b.createModule(.{
-        .root_source_file = b.path("examples/macos/macos_metal.zig"),
+        .root_source_file = b.path("examples/macos/macos_glfw.zig"),
         .target = options.target,
         .optimize = options.optimize,
         .imports = &.{
             .{ .name = "impeller", .module = mod },
+            .{ .name = "glfw_c", .module = glfw_c },
         },
     });
     configureImpeller(example_mod, sdk);
     example_mod.addCSourceFile(.{
-        .file = b.path("examples/macos/macos_metal.m"),
-        .flags = &.{ "-fobjc-arc", "-Wno-deprecated-declarations", "-Wno-unguarded-availability-new", "-DGL_SILENCE_DEPRECATION" },
+        .file = b.path("examples/macos/macos_glfw_metal.m"),
+        .flags = &.{ "-fobjc-arc", "-Wno-deprecated-declarations", "-Wno-unguarded-availability-new" },
         .language = .objective_c,
     });
-    example_mod.addSystemIncludePath(.{ .cwd_relative = "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include" });
-    example_mod.addFrameworkPath(.{ .cwd_relative = "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks" });
     example_mod.linkFramework("AppKit", .{});
     example_mod.linkFramework("Metal", .{});
     example_mod.linkFramework("QuartzCore", .{});
 
     const example = b.addExecutable(.{
-        .name = "macos-metal",
+        .name = "macos-glfw",
         .root_module = example_mod,
     });
-    linkImpeller(example_mod, sdk, options.target.result);
+    example.root_module.linkLibrary(glfw_lib);
+    linkImpeller(example.root_module, sdk, options.target.result);
     return example;
 }
 
@@ -110,7 +117,7 @@ fn addLinuxGlfwExample(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk, m
         .target = options.target,
         .optimize = options.optimize,
     });
-    const glfw_c = addGlfwBindings(b, options, glfw_dep.path("glfw/include/GLFW/glfw3.h"));
+    const glfw_c = addGlfwBindings(b, options, glfw_dep, .linux);
     const glfw_lib = glfw_dep.artifact("glfw");
     const linux_example_options = b.addOptions();
     linux_example_options.addOption(LinuxGlfwPlatform, "glfw", glfw_platform);
@@ -156,13 +163,20 @@ fn addImpellerBindings(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk) *
     return translate.createModule();
 }
 
-fn addGlfwBindings(b: *std.Build, options: BuildOptions, header: std.Build.LazyPath) *std.Build.Module {
+fn addGlfwBindings(
+    b: *std.Build,
+    options: BuildOptions,
+    glfw_dep: *std.Build.Dependency,
+    platform: Example,
+) *std.Build.Module {
     const translate = b.addTranslateC(.{
-        .root_source_file = header,
+        .root_source_file = glfw_dep.path("glfw/include/GLFW/glfw3.h"),
         .target = options.target,
         .optimize = options.optimize,
     });
-    translate.defineCMacro("GLFW_INCLUDE_VULKAN", null);
+    if (platform == .linux) {
+        translate.defineCMacro("GLFW_INCLUDE_VULKAN", null);
+    }
     return translate.createModule();
 }
 
@@ -193,8 +207,9 @@ fn configureImpellerRuntime(run: *std.Build.Step.Run, sdk: ImpellerSdk) void {
 
 fn resolveImpellerSdk(b: *std.Build, target: std.Target) ImpellerSdk {
     const include_path = b.path("vendor/impeller/include");
-    const lib_subpath = impellerLibOsDir(target) orelse @panic("unsupported Impeller SDK target");
-    const lib_path = b.fmt("vendor/impeller/lib/{s}", .{lib_subpath});
+    const os_dir = impellerLibOsDir(target) orelse @panic("unsupported Impeller SDK target");
+    const arch_dir = impellerLibArchDir(target) orelse @panic("unsupported Impeller SDK target architecture");
+    const lib_path = b.fmt("vendor/impeller/lib/{s}/{s}", .{ os_dir, arch_dir });
     return .{
         .header = b.path("vendor/impeller/include/impeller.h"),
         .include_path = include_path,
@@ -202,7 +217,7 @@ fn resolveImpellerSdk(b: *std.Build, target: std.Target) ImpellerSdk {
         .lib_path_string = b.pathFromRoot(lib_path),
         .library = b.path(b.fmt("{s}/{s}", .{ lib_path, impellerLibraryName(target) })),
         .import_library = if (target.os.tag == .windows)
-            b.path(b.fmt("{s}/{s}", .{ lib_path, impellerImportLibraryName(target) }))
+            b.path(b.fmt("{s}/{s}", .{ lib_path, impellerImportLibraryName() }))
         else
             null,
     };
@@ -210,30 +225,14 @@ fn resolveImpellerSdk(b: *std.Build, target: std.Target) ImpellerSdk {
 
 fn impellerLibraryName(target: std.Target) []const u8 {
     return switch (target.os.tag) {
-        .macos => switch (target.cpu.arch) {
-            .aarch64 => "libimpeller-arm64.dylib",
-            .x86_64 => "libimpeller.dylib",
-            else => unreachable,
-        },
-        .windows => switch (target.cpu.arch) {
-            .aarch64 => "impeller-arm64.dll",
-            .x86_64 => "impeller-x64.dll",
-            else => unreachable,
-        },
-        else => switch (target.cpu.arch) {
-            .aarch64 => "libimpeller-arm64.so",
-            .x86_64 => "libimpeller.so",
-            else => unreachable,
-        },
+        .macos => "libimpeller.dylib",
+        .windows => "impeller.dll",
+        else => "libimpeller.so",
     };
 }
 
-fn impellerImportLibraryName(target: std.Target) []const u8 {
-    return switch (target.cpu.arch) {
-        .aarch64 => "impeller-arm64.dll.lib",
-        .x86_64 => "impeller-x64.dll.lib",
-        else => unreachable,
-    };
+fn impellerImportLibraryName() []const u8 {
+    return "impeller.dll.lib";
 }
 
 fn impellerLibOsDir(target: std.Target) ?[]const u8 {
@@ -241,6 +240,14 @@ fn impellerLibOsDir(target: std.Target) ?[]const u8 {
         .macos => "macos",
         .linux => "linux",
         .windows => "windows",
+        else => null,
+    };
+}
+
+fn impellerLibArchDir(target: std.Target) ?[]const u8 {
+    return switch (target.cpu.arch) {
+        .aarch64 => "arm64",
+        .x86_64 => "x64",
         else => null,
     };
 }

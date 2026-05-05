@@ -25,7 +25,11 @@ zig build run -Dexample=macos
 ## Examples
 
 - Linux GLFW + Vulkan: [linux_glfw.zig](examples/linux/linux_glfw.zig)
-- macOS Metal: [macos_metal.zig](examples/macos/macos_metal.zig)
+- macOS GLFW + Metal: [macos_glfw.zig](examples/macos/macos_glfw.zig)
+
+## macOS notes
+
+The macOS example uses GLFW for window creation and Impeller's Metal backend for rendering. A small Objective-C glue file ([macos_glfw_metal.m](examples/macos/macos_glfw_metal.m)) attaches a `CAMetalLayer` to the GLFW-owned `NSView` and hands `CAMetalDrawable` instances back to Zig each frame.
 
 ## Linux notes
 
