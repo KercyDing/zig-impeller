@@ -519,6 +519,13 @@ pub const Texture = struct {
         return .{ .handle = handle };
     }
 
+    /// Adopts an existing OpenGL texture handle.
+    pub fn initWithOpenGLTextureHandle(context: Context, descriptor: TextureDescriptor, handle: u64) Error!Texture {
+        var local_descriptor = descriptor;
+        const texture = c.ImpellerTextureCreateWithOpenGLTextureHandleNew(context.handle, &local_descriptor, handle) orelse return Error.CreateTextureFailed;
+        return .{ .handle = texture };
+    }
+
     /// Retains this texture reference.
     pub fn retain(self: Texture) void {
         c.ImpellerTextureRetain(self.handle);
@@ -965,6 +972,12 @@ pub const Surface = struct {
     pub fn wrapFBO(context: Context, fbo: u64, format: PixelFormat, size: ISize) Error!Surface {
         var local_size = size;
         const handle = c.ImpellerSurfaceCreateWrappedFBONew(context.handle, fbo, format, &local_size) orelse return Error.AcquireSurfaceFailed;
+        return .{ .handle = handle };
+    }
+
+    /// Wraps an existing Metal drawable as an Impeller surface.
+    pub fn wrapMetalDrawable(context: Context, metal_drawable: *anyopaque) Error!Surface {
+        const handle = c.ImpellerSurfaceCreateWrappedMetalDrawableNew(context.handle, metal_drawable) orelse return Error.AcquireSurfaceFailed;
         return .{ .handle = handle };
     }
 
