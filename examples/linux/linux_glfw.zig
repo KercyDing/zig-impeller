@@ -58,7 +58,26 @@ pub fn main() !void {
     var swapchain = try impeller.VulkanSwapchain.init(context, @ptrCast(vulkan_surface));
     defer swapchain.deinit();
 
-    var display_list = try createDisplayList();
+    var texture_bytes = [_]u8{
+        255, 0, 0, 255, 255, 255, 0, 255, 0, 255, 0, 255, 0, 0, 0, 255,
+        255, 255, 255, 255, 255, 0, 255, 255, 0, 255, 255, 255, 255, 128, 0, 255,
+        64, 64, 255, 255, 255, 64, 64, 255, 64, 255, 64, 255, 32, 32, 32, 255,
+        0, 0, 255, 255, 255, 0, 128, 255, 0, 128, 255, 255, 255, 255, 255, 255,
+    };
+    var checker_texture = try impeller.Texture.initWithContents(
+        context,
+        impeller.textureDescriptor(
+            impeller.c.kImpellerPixelFormatRGBA8888,
+            impeller.pixelSize(4, 4),
+            1,
+        ),
+        impeller.mapping(texture_bytes[0..]),
+    );
+    defer checker_texture.deinit();
+    checker_texture.retain();
+    defer checker_texture.deinit();
+
+    var display_list = try createDisplayList(checker_texture);
     defer display_list.deinit();
 
     while (glfw.glfwWindowShouldClose(window) == glfw.GLFW_FALSE) {
@@ -76,15 +95,32 @@ pub fn main() !void {
     }
 }
 
-fn createDisplayList() !impeller.DisplayList {
+fn createDisplayList(checker_texture: impeller.Texture) !impeller.DisplayList {
     var builder = try impeller.DisplayListBuilder.init(null);
     defer builder.deinit();
 
     var paint = try impeller.Paint.init();
     defer paint.deinit();
 
-    var blur = impeller.ImageFilter.initBlur(10.0, 10.0, impeller.c.kImpellerTileModeDecal);
-    defer if (blur) |*value| value.deinit();
+    var blur = try impeller.ImageFilter.initBlur(10.0, 10.0, impeller.c.kImpellerTileModeDecal);
+    defer blur.deinit();
+
+    var dilate_image_filter = try impeller.ImageFilter.initDilate(4.0, 4.0);
+    defer dilate_image_filter.deinit();
+
+    var erode_image_filter = try impeller.ImageFilter.initErode(3.0, 3.0);
+    defer erode_image_filter.deinit();
+
+    var matrix_image_filter = try impeller.ImageFilter.initMatrix(
+        translationMatrix(18.0, 0.0),
+        impeller.c.kImpellerTextureSamplingLinear,
+    );
+    defer matrix_image_filter.deinit();
+    matrix_image_filter.retain();
+    defer matrix_image_filter.deinit();
+
+    var composed_image_filter = try impeller.ImageFilter.initCompose(dilate_image_filter, erode_image_filter);
+    defer composed_image_filter.deinit();
 
     var blend_color_filter = try impeller.ColorFilter.initBlend(
         impeller.srgb(1.0, 0.0, 1.0, 0.55),
@@ -101,6 +137,11 @@ fn createDisplayList() !impeller.DisplayList {
         0.0, 0.0, 0.0, 1.0, 0.0,
     }));
     defer grayscale_color_filter.deinit();
+
+    var blur_mask_filter = try impeller.MaskFilter.initBlur(impeller.c.kImpellerBlurStyleNormal, 12.0);
+    defer blur_mask_filter.deinit();
+    blur_mask_filter.retain();
+    defer blur_mask_filter.deinit();
 
     var reused_display_list = try createReusableDisplayList();
     defer reused_display_list.deinit();
@@ -192,7 +233,7 @@ fn createDisplayList() !impeller.DisplayList {
     builder.saveLayer(
         impeller.rect(-10, -10, 140, 140),
         null,
-        if (blur) |value| value else null,
+        blur,
     );
 
     paint.setColor(impeller.srgb(0.1, 0.1, 0.1, 0.35));
@@ -285,6 +326,35 @@ fn createDisplayList() !impeller.DisplayList {
     builder.drawRoundedRect(
         impeller.rect(300.0, 430.0, 100.0, 56.0),
         impeller.uniformRadii(16.0),
+        paint,
+    );
+
+    paint = try impeller.Paint.init();
+    defer paint.deinit();
+    paint.setColor(impeller.srgb(0.9, 0.15, 0.15, 1.0));
+    paint.setMaskFilter(blur_mask_filter);
+    builder.drawPath(triangle_path, paint);
+
+    paint = try impeller.Paint.init();
+    defer paint.deinit();
+    paint.setColor(impeller.srgb(0.15, 0.75, 0.9, 1.0));
+    paint.setImageFilter(matrix_image_filter);
+    builder.drawRoundedRectDifference(
+        impeller.rect(430.0, 430.0, 100.0, 56.0),
+        impeller.uniformRadii(16.0),
+        impeller.rect(448.0, 438.0, 28.0, 18.0),
+        impeller.uniformRadii(6.0),
+        paint,
+    );
+
+    paint = try impeller.Paint.init();
+    defer paint.deinit();
+    paint.setColor(impeller.srgb(1.0, 1.0, 1.0, 1.0));
+    builder.drawTextureRect(
+        checker_texture,
+        impeller.rect(0.0, 0.0, 4.0, 4.0),
+        impeller.rect(688.0, 424.0, 72.0, 72.0),
+        impeller.c.kImpellerTextureSamplingNearestNeighbor,
         paint,
     );
 

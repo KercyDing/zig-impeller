@@ -5,6 +5,9 @@ pub const Error = error{
     CreateContextFailed,
     CreatePaintFailed,
     CreateColorFilterFailed,
+    CreateMaskFilterFailed,
+    CreateImageFilterFailed,
+    CreateTextureFailed,
     CreateDisplayListBuilderFailed,
     CreateDisplayListFailed,
     CreatePathBuilderFailed,
@@ -40,7 +43,11 @@ pub const VulkanInfo = c.ImpellerContextVulkanInfo;
 pub const VulkanSettings = c.ImpellerContextVulkanSettings;
 
 pub const Color = c.ImpellerColor;
+pub const Mapping = c.ImpellerMapping;
+pub const TextureDescriptor = c.ImpellerTextureDescriptor;
 pub const ImageFilterHandle = c.ImpellerImageFilter;
+pub const TextureHandle = c.ImpellerTexture;
+pub const FragmentProgramHandle = c.ImpellerFragmentProgram;
 
 /// Creates an sRGB color value for Impeller drawing APIs.
 pub fn srgb(red: f32, green: f32, blue: f32, alpha: f32) Color {
@@ -147,6 +154,16 @@ pub const Paint = struct {
     pub fn setColorFilter(self: Paint, color_filter: ColorFilter) void {
         c.ImpellerPaintSetColorFilter(self.handle, color_filter.handle);
     }
+
+    /// Sets the mask filter applied by this paint.
+    pub fn setMaskFilter(self: Paint, mask_filter: MaskFilter) void {
+        c.ImpellerPaintSetMaskFilter(self.handle, mask_filter.handle);
+    }
+
+    /// Sets the image filter applied by this paint.
+    pub fn setImageFilter(self: Paint, image_filter: ImageFilter) void {
+        c.ImpellerPaintSetImageFilter(self.handle, image_filter.handle);
+    }
 };
 
 pub const ColorFilter = struct {
@@ -187,9 +204,59 @@ pub const ImageFilter = struct {
     handle: c.ImpellerImageFilter,
 
     /// Creates a Gaussian blur image filter.
-    pub fn initBlur(x_sigma: f32, y_sigma: f32, tile_mode: TileMode) ?ImageFilter {
-        const handle = c.ImpellerImageFilterCreateBlurNew(x_sigma, y_sigma, tile_mode) orelse return null;
+    pub fn initBlur(x_sigma: f32, y_sigma: f32, tile_mode: TileMode) Error!ImageFilter {
+        const handle = c.ImpellerImageFilterCreateBlurNew(x_sigma, y_sigma, tile_mode) orelse return Error.CreateImageFilterFailed;
         return .{ .handle = handle };
+    }
+
+    /// Creates a dilate image filter.
+    pub fn initDilate(x_radius: f32, y_radius: f32) Error!ImageFilter {
+        const handle = c.ImpellerImageFilterCreateDilateNew(x_radius, y_radius) orelse return Error.CreateImageFilterFailed;
+        return .{ .handle = handle };
+    }
+
+    /// Creates an erode image filter.
+    pub fn initErode(x_radius: f32, y_radius: f32) Error!ImageFilter {
+        const handle = c.ImpellerImageFilterCreateErodeNew(x_radius, y_radius) orelse return Error.CreateImageFilterFailed;
+        return .{ .handle = handle };
+    }
+
+    /// Creates a matrix image filter.
+    pub fn initMatrix(matrix: Matrix, sampling: TextureSampling) Error!ImageFilter {
+        var local_matrix = matrix;
+        const handle = c.ImpellerImageFilterCreateMatrixNew(&local_matrix, sampling) orelse return Error.CreateImageFilterFailed;
+        return .{ .handle = handle };
+    }
+
+    /// Creates a fragment-program image filter.
+    pub fn initFragmentProgram(
+        context: Context,
+        fragment_program: FragmentProgramHandle,
+        samplers: ?[*]TextureHandle,
+        samplers_count: usize,
+        data: ?[*]const u8,
+        data_bytes_length: usize,
+    ) Error!ImageFilter {
+        const handle = c.ImpellerImageFilterCreateFragmentProgramNew(
+            context.handle,
+            fragment_program,
+            samplers,
+            samplers_count,
+            data,
+            data_bytes_length,
+        ) orelse return Error.CreateImageFilterFailed;
+        return .{ .handle = handle };
+    }
+
+    /// Creates a composed image filter.
+    pub fn initCompose(outer: ImageFilter, inner: ImageFilter) Error!ImageFilter {
+        const handle = c.ImpellerImageFilterCreateComposeNew(outer.handle, inner.handle) orelse return Error.CreateImageFilterFailed;
+        return .{ .handle = handle };
+    }
+
+    /// Retains this image filter reference.
+    pub fn retain(self: ImageFilter) void {
+        c.ImpellerImageFilterRetain(self.handle);
     }
 
     /// Releases this image filter reference.
@@ -200,6 +267,60 @@ pub const ImageFilter = struct {
 
     /// Returns the underlying Impeller image filter handle.
     pub fn raw(self: ImageFilter) c.ImpellerImageFilter {
+        return self.handle;
+    }
+};
+
+pub const Texture = struct {
+    handle: c.ImpellerTexture,
+
+    /// Creates a texture from tightly packed pixel bytes.
+    pub fn initWithContents(context: Context, descriptor: TextureDescriptor, contents: Mapping) Error!Texture {
+        var local_descriptor = descriptor;
+        var local_contents = contents;
+        const handle = c.ImpellerTextureCreateWithContentsNew(context.handle, &local_descriptor, &local_contents, null) orelse return Error.CreateTextureFailed;
+        return .{ .handle = handle };
+    }
+
+    /// Retains this texture reference.
+    pub fn retain(self: Texture) void {
+        c.ImpellerTextureRetain(self.handle);
+    }
+
+    /// Releases this texture reference.
+    pub fn deinit(self: *Texture) void {
+        c.ImpellerTextureRelease(self.handle);
+        self.handle = null;
+    }
+
+    /// Returns the underlying Impeller texture handle.
+    pub fn raw(self: Texture) c.ImpellerTexture {
+        return self.handle;
+    }
+};
+
+pub const MaskFilter = struct {
+    handle: c.ImpellerMaskFilter,
+
+    /// Creates a blur mask filter.
+    pub fn initBlur(style: BlurStyle, sigma: f32) Error!MaskFilter {
+        const handle = c.ImpellerMaskFilterCreateBlurNew(style, sigma) orelse return Error.CreateMaskFilterFailed;
+        return .{ .handle = handle };
+    }
+
+    /// Retains this mask filter reference.
+    pub fn retain(self: MaskFilter) void {
+        c.ImpellerMaskFilterRetain(self.handle);
+    }
+
+    /// Releases this mask filter reference.
+    pub fn deinit(self: *MaskFilter) void {
+        c.ImpellerMaskFilterRelease(self.handle);
+        self.handle = null;
+    }
+
+    /// Returns the underlying Impeller mask filter handle.
+    pub fn raw(self: MaskFilter) c.ImpellerMaskFilter {
         return self.handle;
     }
 };
@@ -396,6 +517,45 @@ pub const DisplayListBuilder = struct {
         c.ImpellerDisplayListBuilderDrawDisplayList(self.handle, display_list.handle, opacity);
     }
 
+    /// Draws a texture at the specified point.
+    pub fn drawTexture(
+        self: DisplayListBuilder,
+        texture: Texture,
+        point_value: Point,
+        sampling: TextureSampling,
+        paint: ?Paint,
+    ) void {
+        var local_point = point_value;
+        c.ImpellerDisplayListBuilderDrawTexture(
+            self.handle,
+            texture.handle,
+            &local_point,
+            sampling,
+            if (paint) |value| value.raw() else null,
+        );
+    }
+
+    /// Draws a sub-rectangle of a texture into the destination rectangle.
+    pub fn drawTextureRect(
+        self: DisplayListBuilder,
+        texture: Texture,
+        src_rect: Rect,
+        dst_rect: Rect,
+        sampling: TextureSampling,
+        paint: ?Paint,
+    ) void {
+        var local_src_rect = src_rect;
+        var local_dst_rect = dst_rect;
+        c.ImpellerDisplayListBuilderDrawTextureRect(
+            self.handle,
+            texture.handle,
+            &local_src_rect,
+            &local_dst_rect,
+            sampling,
+            if (paint) |value| value.raw() else null,
+        );
+    }
+
     /// Draws a paint over the current clip.
     pub fn drawPaint(self: DisplayListBuilder, paint: Paint) void {
         c.ImpellerDisplayListBuilderDrawPaint(self.handle, paint.handle);
@@ -533,6 +693,32 @@ pub fn uniformRadii(radius: f32) RoundingRadii {
 
 pub fn colorMatrix(values: [20]f32) ColorMatrix {
     return .{ .m = values };
+}
+
+/// Creates a pixel size value.
+pub fn pixelSize(width: i32, height: i32) ISize {
+    return .{
+        .width = width,
+        .height = height,
+    };
+}
+
+/// Creates a texture descriptor for tightly packed textures.
+pub fn textureDescriptor(pixel_format: PixelFormat, size_value: ISize, mip_count: u32) TextureDescriptor {
+    return .{
+        .pixel_format = pixel_format,
+        .size = size_value,
+        .mip_count = mip_count,
+    };
+}
+
+/// Creates a byte mapping that borrows caller-owned memory.
+pub fn mapping(bytes: []const u8) Mapping {
+    return .{
+        .data = bytes.ptr,
+        .length = bytes.len,
+        .on_release = null,
+    };
 }
 
 pub const VulkanSwapchain = struct {
