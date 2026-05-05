@@ -1,4 +1,5 @@
-pub const c = @import("impeller_c");
+const std = @import("std");
+const c = @import("impeller_c");
 
 pub const Error = error{
     VersionMismatch,
@@ -65,6 +66,65 @@ pub const TextureDescriptor = c.ImpellerTextureDescriptor;
 pub const ImageFilterHandle = c.ImpellerImageFilter;
 pub const TextureHandle = c.ImpellerTexture;
 
+pub const color_spaces = struct {
+    pub const srgb = c.kImpellerColorSpaceSRGB;
+};
+
+pub const pixel_formats = struct {
+    pub const rgba8888 = c.kImpellerPixelFormatRGBA8888;
+};
+
+pub const texture_samplings = struct {
+    pub const linear = c.kImpellerTextureSamplingLinear;
+    pub const nearest_neighbor = c.kImpellerTextureSamplingNearestNeighbor;
+};
+
+pub const fill_types = struct {
+    pub const non_zero = c.kImpellerFillTypeNonZero;
+};
+
+pub const clip_operations = struct {
+    pub const intersect = c.kImpellerClipOperationIntersect;
+};
+
+pub const blend_modes = struct {
+    pub const source_atop = c.kImpellerBlendModeSourceATop;
+};
+
+pub const draw_styles = struct {
+    pub const stroke = c.kImpellerDrawStyleStroke;
+};
+
+pub const stroke_caps = struct {
+    pub const round = c.kImpellerStrokeCapRound;
+};
+
+pub const stroke_joins = struct {
+    pub const round = c.kImpellerStrokeJoinRound;
+};
+
+pub const tile_modes = struct {
+    pub const clamp = c.kImpellerTileModeClamp;
+    pub const decal = c.kImpellerTileModeDecal;
+    pub const repeat = c.kImpellerTileModeRepeat;
+};
+
+pub const blur_styles = struct {
+    pub const normal = c.kImpellerBlurStyleNormal;
+};
+
+pub const font_weights = struct {
+    pub const bold = c.kImpellerFontWeight700;
+};
+
+pub const text_alignments = struct {
+    pub const left = c.kImpellerTextAlignmentLeft;
+};
+
+pub const text_directions = struct {
+    pub const ltr = c.kImpellerTextDirectionLTR;
+};
+
 /// Creates an sRGB color value for Impeller drawing APIs.
 pub fn srgb(red: f32, green: f32, blue: f32, alpha: f32) Color {
     return .{
@@ -72,7 +132,7 @@ pub fn srgb(red: f32, green: f32, blue: f32, alpha: f32) Color {
         .green = green,
         .blue = blue,
         .alpha = alpha,
-        .color_space = c.kImpellerColorSpaceSRGB,
+        .color_space = color_spaces.srgb,
     };
 }
 
@@ -118,6 +178,7 @@ pub const Context = struct {
 
     /// Releases this context reference.
     pub fn deinit(self: *Context) void {
+        if (self.handle == null) return;
         c.ImpellerContextRelease(self.handle);
         self.handle = null;
     }
@@ -146,6 +207,7 @@ pub const Paint = struct {
 
     /// Releases this paint reference.
     pub fn deinit(self: *Paint) void {
+        if (self.handle == null) return;
         c.ImpellerPaintRelease(self.handle);
         self.handle = null;
     }
@@ -236,6 +298,7 @@ pub const ColorFilter = struct {
 
     /// Releases this color filter reference.
     pub fn deinit(self: *ColorFilter) void {
+        if (self.handle == null) return;
         c.ImpellerColorFilterRelease(self.handle);
         self.handle = null;
     }
@@ -373,7 +436,7 @@ pub const ColorSource = struct {
         return .{ .handle = handle };
     }
 
-    /// Creates a fragment-program color source.
+    /// Creates a fragment-program color source from caller-managed sampler and data pointers.
     pub fn initFragmentProgram(
         context: Context,
         fragment_program: FragmentProgram,
@@ -393,6 +456,25 @@ pub const ColorSource = struct {
         return .{ .handle = handle };
     }
 
+    /// Creates a fragment-program color source from Zig slices.
+    pub fn initFragmentProgramSlices(
+        context: Context,
+        fragment_program: FragmentProgram,
+        samplers: []const Texture,
+        data: []const u8,
+    ) Error!ColorSource {
+        const sampler_handles = try textureHandlesFromSlice(samplers);
+        defer std.heap.page_allocator.free(sampler_handles);
+        return initFragmentProgram(
+            context,
+            fragment_program,
+            if (sampler_handles.len == 0) null else sampler_handles.ptr,
+            sampler_handles.len,
+            if (data.len == 0) null else data.ptr,
+            data.len,
+        );
+    }
+
     /// Retains this color source reference.
     pub fn retain(self: ColorSource) void {
         c.ImpellerColorSourceRetain(self.handle);
@@ -400,6 +482,7 @@ pub const ColorSource = struct {
 
     /// Releases this color source reference.
     pub fn deinit(self: *ColorSource) void {
+        if (self.handle == null) return;
         c.ImpellerColorSourceRelease(self.handle);
         self.handle = null;
     }
@@ -413,11 +496,16 @@ pub const ColorSource = struct {
 pub const FragmentProgram = struct {
     handle: c.ImpellerFragmentProgram,
 
-    /// Creates a fragment program from impellerc-compiled bytes.
+    /// Creates a fragment program from a caller-managed Impeller mapping.
     pub fn init(data: Mapping) Error!FragmentProgram {
         var local_data = data;
         const handle = c.ImpellerFragmentProgramNew(&local_data, null) orelse return Error.CreateFragmentProgramFailed;
         return .{ .handle = handle };
+    }
+
+    /// Creates a fragment program from borrowed impellerc-compiled bytes.
+    pub fn initWithBytes(data: []const u8) Error!FragmentProgram {
+        return init(mapping(data));
     }
 
     /// Retains this fragment program reference.
@@ -427,6 +515,7 @@ pub const FragmentProgram = struct {
 
     /// Releases this fragment program reference.
     pub fn deinit(self: *FragmentProgram) void {
+        if (self.handle == null) return;
         c.ImpellerFragmentProgramRelease(self.handle);
         self.handle = null;
     }
@@ -465,7 +554,7 @@ pub const ImageFilter = struct {
         return .{ .handle = handle };
     }
 
-    /// Creates a fragment-program image filter.
+    /// Creates a fragment-program image filter from caller-managed sampler and data pointers.
     pub fn initFragmentProgram(
         context: Context,
         fragment_program: FragmentProgram,
@@ -485,6 +574,25 @@ pub const ImageFilter = struct {
         return .{ .handle = handle };
     }
 
+    /// Creates a fragment-program image filter from Zig slices.
+    pub fn initFragmentProgramSlices(
+        context: Context,
+        fragment_program: FragmentProgram,
+        samplers: []const Texture,
+        data: []const u8,
+    ) Error!ImageFilter {
+        const sampler_handles = try textureHandlesFromSlice(samplers);
+        defer std.heap.page_allocator.free(sampler_handles);
+        return initFragmentProgram(
+            context,
+            fragment_program,
+            if (sampler_handles.len == 0) null else sampler_handles.ptr,
+            sampler_handles.len,
+            if (data.len == 0) null else data.ptr,
+            data.len,
+        );
+    }
+
     /// Creates a composed image filter.
     pub fn initCompose(outer: ImageFilter, inner: ImageFilter) Error!ImageFilter {
         const handle = c.ImpellerImageFilterCreateComposeNew(outer.handle, inner.handle) orelse return Error.CreateImageFilterFailed;
@@ -498,6 +606,7 @@ pub const ImageFilter = struct {
 
     /// Releases this image filter reference.
     pub fn deinit(self: *ImageFilter) void {
+        if (self.handle == null) return;
         c.ImpellerImageFilterRelease(self.handle);
         self.handle = null;
     }
@@ -511,12 +620,17 @@ pub const ImageFilter = struct {
 pub const Texture = struct {
     handle: c.ImpellerTexture,
 
-    /// Creates a texture from tightly packed pixel bytes.
+    /// Creates a texture from a caller-managed Impeller mapping.
     pub fn initWithContents(context: Context, descriptor: TextureDescriptor, contents: Mapping) Error!Texture {
         var local_descriptor = descriptor;
         var local_contents = contents;
         const handle = c.ImpellerTextureCreateWithContentsNew(context.handle, &local_descriptor, &local_contents, null) orelse return Error.CreateTextureFailed;
         return .{ .handle = handle };
+    }
+
+    /// Creates a texture from tightly packed borrowed pixel bytes.
+    pub fn initWithBytes(context: Context, descriptor: TextureDescriptor, bytes: []const u8) Error!Texture {
+        return initWithContents(context, descriptor, mapping(bytes));
     }
 
     /// Adopts an existing OpenGL texture handle.
@@ -533,6 +647,7 @@ pub const Texture = struct {
 
     /// Releases this texture reference.
     pub fn deinit(self: *Texture) void {
+        if (self.handle == null) return;
         c.ImpellerTextureRelease(self.handle);
         self.handle = null;
     }
@@ -564,6 +679,7 @@ pub const MaskFilter = struct {
 
     /// Releases this mask filter reference.
     pub fn deinit(self: *MaskFilter) void {
+        if (self.handle == null) return;
         c.ImpellerMaskFilterRelease(self.handle);
         self.handle = null;
     }
@@ -584,6 +700,7 @@ pub const Path = struct {
 
     /// Releases this path reference.
     pub fn deinit(self: *Path) void {
+        if (self.handle == null) return;
         c.ImpellerPathRelease(self.handle);
         self.handle = null;
     }
@@ -617,6 +734,7 @@ pub const PathBuilder = struct {
 
     /// Releases this path builder reference.
     pub fn deinit(self: *PathBuilder) void {
+        if (self.handle == null) return;
         c.ImpellerPathBuilderRelease(self.handle);
         self.handle = null;
     }
@@ -701,6 +819,7 @@ pub const DisplayList = struct {
 
     /// Releases this display list reference.
     pub fn deinit(self: *DisplayList) void {
+        if (self.handle == null) return;
         c.ImpellerDisplayListRelease(self.handle);
         self.handle = null;
     }
@@ -724,6 +843,7 @@ pub const DisplayListBuilder = struct {
 
     /// Releases this display list builder reference.
     pub fn deinit(self: *DisplayListBuilder) void {
+        if (self.handle == null) return;
         c.ImpellerDisplayListBuilderRelease(self.handle);
         self.handle = null;
     }
@@ -988,6 +1108,7 @@ pub const Surface = struct {
 
     /// Releases this surface reference.
     pub fn deinit(self: *Surface) void {
+        if (self.handle == null) return;
         c.ImpellerSurfaceRelease(self.handle);
         self.handle = null;
     }
@@ -1059,6 +1180,14 @@ pub fn mapping(bytes: []const u8) Mapping {
     };
 }
 
+fn textureHandlesFromSlice(textures: []const Texture) ![]TextureHandle {
+    const handles = try std.heap.page_allocator.alloc(TextureHandle, textures.len);
+    for (textures, 0..) |texture, index| {
+        handles[index] = texture.handle;
+    }
+    return handles;
+}
+
 pub const VulkanSwapchain = struct {
     handle: c.ImpellerVulkanSwapchain,
 
@@ -1075,6 +1204,7 @@ pub const VulkanSwapchain = struct {
 
     /// Releases this Vulkan swapchain reference.
     pub fn deinit(self: *VulkanSwapchain) void {
+        if (self.handle == null) return;
         c.ImpellerVulkanSwapchainRelease(self.handle);
         self.handle = null;
     }
@@ -1102,16 +1232,22 @@ pub const TypographyContext = struct {
 
     /// Releases this typography context reference.
     pub fn deinit(self: *TypographyContext) void {
+        if (self.handle == null) return;
         c.ImpellerTypographyContextRelease(self.handle);
         self.handle = null;
     }
 
-    /// Registers a font blob, optionally overriding its family name.
+    /// Registers a font blob from a caller-managed Impeller mapping, optionally overriding its family name.
     pub fn registerFont(self: TypographyContext, contents: Mapping, family_name_alias: ?[*:0]const u8) Error!void {
         var local_contents = contents;
         if (!c.ImpellerTypographyContextRegisterFont(self.handle, &local_contents, null, family_name_alias)) {
             return Error.RegisterFontFailed;
         }
+    }
+
+    /// Registers a font blob from borrowed bytes, optionally overriding its family name.
+    pub fn registerFontBytes(self: TypographyContext, bytes: []const u8, family_name_alias: ?[*:0]const u8) Error!void {
+        return self.registerFont(mapping(bytes), family_name_alias);
     }
 };
 
@@ -1131,6 +1267,7 @@ pub const ParagraphStyle = struct {
 
     /// Releases this paragraph style reference.
     pub fn deinit(self: *ParagraphStyle) void {
+        if (self.handle == null) return;
         c.ImpellerParagraphStyleRelease(self.handle);
         self.handle = null;
     }
@@ -1218,6 +1355,7 @@ pub const ParagraphBuilder = struct {
 
     /// Releases this paragraph builder reference.
     pub fn deinit(self: *ParagraphBuilder) void {
+        if (self.handle == null) return;
         c.ImpellerParagraphBuilderRelease(self.handle);
         self.handle = null;
     }
@@ -1254,6 +1392,7 @@ pub const Paragraph = struct {
 
     /// Releases this paragraph reference.
     pub fn deinit(self: *Paragraph) void {
+        if (self.handle == null) return;
         c.ImpellerParagraphRelease(self.handle);
         self.handle = null;
     }
@@ -1334,6 +1473,7 @@ pub const LineMetrics = struct {
 
     /// Releases this line metrics reference.
     pub fn deinit(self: *LineMetrics) void {
+        if (self.handle == null) return;
         c.ImpellerLineMetricsRelease(self.handle);
         self.handle = null;
     }
@@ -1409,6 +1549,7 @@ pub const GlyphInfo = struct {
 
     /// Releases this glyph info reference.
     pub fn deinit(self: *GlyphInfo) void {
+        if (self.handle == null) return;
         c.ImpellerGlyphInfoRelease(self.handle);
         self.handle = null;
     }

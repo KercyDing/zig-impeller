@@ -69,7 +69,7 @@ pub fn main() !void {
     var checker_texture = try impeller.Texture.initWithContents(
         context,
         impeller.textureDescriptor(
-            impeller.c.kImpellerPixelFormatRGBA8888,
+            impeller.pixel_formats.rgba8888,
             impeller.pixelSize(4, 4),
             1,
         ),
@@ -110,7 +110,7 @@ fn createDisplayList(checker_texture: impeller.Texture, font_bytes: []const u8) 
     var paint = try impeller.Paint.init();
     defer paint.deinit();
 
-    var blur = try impeller.ImageFilter.initBlur(10.0, 10.0, impeller.c.kImpellerTileModeDecal);
+    var blur = try impeller.ImageFilter.initBlur(10.0, 10.0, impeller.tile_modes.decal);
     defer blur.deinit();
 
     var dilate_image_filter = try impeller.ImageFilter.initDilate(4.0, 4.0);
@@ -121,7 +121,7 @@ fn createDisplayList(checker_texture: impeller.Texture, font_bytes: []const u8) 
 
     var matrix_image_filter = try impeller.ImageFilter.initMatrix(
         translationMatrix(18.0, 0.0),
-        impeller.c.kImpellerTextureSamplingLinear,
+        impeller.texture_samplings.linear,
     );
     defer matrix_image_filter.deinit();
     matrix_image_filter.retain();
@@ -132,7 +132,7 @@ fn createDisplayList(checker_texture: impeller.Texture, font_bytes: []const u8) 
 
     var blend_color_filter = try impeller.ColorFilter.initBlend(
         impeller.srgb(1.0, 0.0, 1.0, 0.55),
-        impeller.c.kImpellerBlendModeSourceATop,
+        impeller.blend_modes.source_atop,
     );
     defer blend_color_filter.deinit();
     blend_color_filter.retain();
@@ -146,7 +146,7 @@ fn createDisplayList(checker_texture: impeller.Texture, font_bytes: []const u8) 
     }));
     defer grayscale_color_filter.deinit();
 
-    var blur_mask_filter = try impeller.MaskFilter.initBlur(impeller.c.kImpellerBlurStyleNormal, 12.0);
+    var blur_mask_filter = try impeller.MaskFilter.initBlur(impeller.blur_styles.normal, 12.0);
     defer blur_mask_filter.deinit();
     blur_mask_filter.retain();
     defer blur_mask_filter.deinit();
@@ -167,9 +167,9 @@ fn createDisplayList(checker_texture: impeller.Texture, font_bytes: []const u8) 
     paragraph_style.setForeground(paragraph_foreground);
     paragraph_style.setFontFamily("Noto Sans");
     paragraph_style.setFontSize(18.0);
-    paragraph_style.setFontWeight(impeller.c.kImpellerFontWeight700);
-    paragraph_style.setTextAlignment(impeller.c.kImpellerTextAlignmentLeft);
-    paragraph_style.setTextDirection(impeller.c.kImpellerTextDirectionLTR);
+    paragraph_style.setFontWeight(impeller.font_weights.bold);
+    paragraph_style.setTextAlignment(impeller.text_alignments.left);
+    paragraph_style.setTextDirection(impeller.text_directions.ltr);
     paragraph_style.setHeight(1.1);
     paragraph_style.setMaxLines(2);
     paragraph_style.setEllipsis("...");
@@ -191,14 +191,14 @@ fn createDisplayList(checker_texture: impeller.Texture, font_bytes: []const u8) 
     triangle_builder.lineTo(impeller.point(535.0, 310.0));
     triangle_builder.lineTo(impeller.point(465.0, 310.0));
     triangle_builder.close();
-    var triangle_path = try triangle_builder.takePath(impeller.c.kImpellerFillTypeNonZero);
+    var triangle_path = try triangle_builder.takePath(impeller.fill_types.non_zero);
     defer triangle_path.deinit();
 
     var oval_builder = try impeller.PathBuilder.init();
     defer oval_builder.deinit();
 
     oval_builder.addOval(impeller.rect(630.0, 226.0, 72.0, 72.0));
-    var oval_path = try oval_builder.takePath(impeller.c.kImpellerFillTypeNonZero);
+    var oval_path = try oval_builder.takePath(impeller.fill_types.non_zero);
     defer oval_path.deinit();
 
     var quadratic_builder = try impeller.PathBuilder.init();
@@ -206,7 +206,7 @@ fn createDisplayList(checker_texture: impeller.Texture, font_bytes: []const u8) 
 
     quadratic_builder.moveTo(impeller.point(52.0, 360.0));
     quadratic_builder.quadraticCurveTo(impeller.point(95.0, 308.0), impeller.point(138.0, 360.0));
-    var quadratic_path = try quadratic_builder.takePath(impeller.c.kImpellerFillTypeNonZero);
+    var quadratic_path = try quadratic_builder.takePath(impeller.fill_types.non_zero);
     defer quadratic_path.deinit();
 
     var cubic_builder = try impeller.PathBuilder.init();
@@ -218,14 +218,14 @@ fn createDisplayList(checker_texture: impeller.Texture, font_bytes: []const u8) 
         impeller.point(250.0, 420.0),
         impeller.point(282.0, 360.0),
     );
-    var cubic_path = try cubic_builder.takePath(impeller.c.kImpellerFillTypeNonZero);
+    var cubic_path = try cubic_builder.takePath(impeller.fill_types.non_zero);
     defer cubic_path.deinit();
 
     var arc_builder = try impeller.PathBuilder.init();
     defer arc_builder.deinit();
 
     arc_builder.addArc(impeller.rect(330.0, 320.0, 72.0, 72.0), 25.0, 320.0);
-    var arc_path = try arc_builder.takePath(impeller.c.kImpellerFillTypeNonZero);
+    var arc_path = try arc_builder.takePath(impeller.fill_types.non_zero);
     defer arc_path.deinit();
 
     var rounded_rect_path_builder = try impeller.PathBuilder.init();
@@ -235,7 +235,7 @@ fn createDisplayList(checker_texture: impeller.Texture, font_bytes: []const u8) 
         impeller.rect(430.0, 324.0, 92.0, 64.0),
         impeller.uniformRadii(20.0),
     );
-    var rounded_rect_path = try rounded_rect_path_builder.takePath(impeller.c.kImpellerFillTypeNonZero);
+    var rounded_rect_path = try rounded_rect_path_builder.takePath(impeller.fill_types.non_zero);
     defer rounded_rect_path.deinit();
 
     paint.setColor(impeller.srgb(1.0, 1.0, 1.0, 1.0));
@@ -245,7 +245,7 @@ fn createDisplayList(checker_texture: impeller.Texture, font_bytes: []const u8) 
     builder.save();
     builder.clipRect(
         impeller.rect(20, 20, 60, 100),
-        impeller.c.kImpellerClipOperationIntersect,
+        impeller.clip_operations.intersect,
     );
     builder.drawRect(impeller.rect(20, 20, 100, 100), paint);
     builder.restore();
@@ -254,7 +254,7 @@ fn createDisplayList(checker_texture: impeller.Texture, font_bytes: []const u8) 
     builder.save();
     builder.clipOval(
         impeller.rect(96.0, 18.0, 72.0, 72.0),
-        impeller.c.kImpellerClipOperationIntersect,
+        impeller.clip_operations.intersect,
     );
     builder.drawRect(impeller.rect(88.0, 10.0, 88.0, 88.0), paint);
     builder.restore();
@@ -264,14 +264,14 @@ fn createDisplayList(checker_texture: impeller.Texture, font_bytes: []const u8) 
     builder.clipRoundedRect(
         impeller.rect(180.0, 20.0, 92.0, 72.0),
         impeller.uniformRadii(18.0),
-        impeller.c.kImpellerClipOperationIntersect,
+        impeller.clip_operations.intersect,
     );
     builder.drawRect(impeller.rect(168.0, 8.0, 116.0, 96.0), paint);
     builder.restore();
 
     paint.setColor(impeller.srgb(0.9, 0.25, 0.55, 1.0));
     builder.save();
-    builder.clipPath(triangle_path, impeller.c.kImpellerClipOperationIntersect);
+    builder.clipPath(triangle_path, impeller.clip_operations.intersect);
     builder.drawRect(impeller.rect(450.0, 236.0, 92.0, 92.0), paint);
     builder.restore();
 
@@ -421,7 +421,7 @@ fn createDisplayList(checker_texture: impeller.Texture, font_bytes: []const u8) 
         impeller.point(140.0, 576.0),
         gradient_colors[0..],
         gradient_stops[0..],
-        impeller.c.kImpellerTileModeClamp,
+        impeller.tile_modes.clamp,
         null,
     );
     defer linear_gradient.deinit();
@@ -433,16 +433,16 @@ fn createDisplayList(checker_texture: impeller.Texture, font_bytes: []const u8) 
         52.0,
         gradient_colors[0..],
         gradient_stops[0..],
-        impeller.c.kImpellerTileModeClamp,
+        impeller.tile_modes.clamp,
         null,
     );
     defer radial_gradient.deinit();
 
     var image_color_source = try impeller.ColorSource.initImage(
         checker_texture,
-        impeller.c.kImpellerTileModeRepeat,
-        impeller.c.kImpellerTileModeRepeat,
-        impeller.c.kImpellerTextureSamplingNearestNeighbor,
+        impeller.tile_modes.repeat,
+        impeller.tile_modes.repeat,
+        impeller.texture_samplings.nearest_neighbor,
         scaleMatrix(6.0, 6.0),
     );
     defer image_color_source.deinit();
@@ -473,19 +473,19 @@ fn createDisplayList(checker_texture: impeller.Texture, font_bytes: []const u8) 
     paint = try impeller.Paint.init();
     defer paint.deinit();
     paint.setColor(impeller.srgb(0.08, 0.08, 0.08, 1.0));
-    paint.setDrawStyle(impeller.c.kImpellerDrawStyleStroke);
+    paint.setDrawStyle(impeller.draw_styles.stroke);
     paint.setStrokeWidth(14.0);
-    paint.setStrokeCap(impeller.c.kImpellerStrokeCapRound);
-    paint.setStrokeJoin(impeller.c.kImpellerStrokeJoinRound);
+    paint.setStrokeCap(impeller.stroke_caps.round);
+    paint.setStrokeJoin(impeller.stroke_joins.round);
     paint.setStrokeMiter(2.0);
     builder.drawPath(arc_path, paint);
 
     paint = try impeller.Paint.init();
     defer paint.deinit();
     paint.setColor(impeller.srgb(0.18, 0.18, 0.18, 1.0));
-    paint.setDrawStyle(impeller.c.kImpellerDrawStyleStroke);
+    paint.setDrawStyle(impeller.draw_styles.stroke);
     paint.setStrokeWidth(8.0);
-    paint.setStrokeCap(impeller.c.kImpellerStrokeCapRound);
+    paint.setStrokeCap(impeller.stroke_caps.round);
     builder.drawLine(
         impeller.point(470.0, 520.0),
         impeller.point(560.0, 560.0),
@@ -526,7 +526,7 @@ fn createDisplayList(checker_texture: impeller.Texture, font_bytes: []const u8) 
         checker_texture,
         impeller.rect(0.0, 0.0, 4.0, 4.0),
         impeller.rect(688.0, 424.0, 72.0, 72.0),
-        impeller.c.kImpellerTextureSamplingNearestNeighbor,
+        impeller.texture_samplings.nearest_neighbor,
         paint,
     );
 

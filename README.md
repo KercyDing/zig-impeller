@@ -1,51 +1,41 @@
 # zig-impeller
 
-A Zig binding for the Impeller rendering engine.
+A Zig binding for the Impeller rendering engine on desktop platforms.
 
-It utilizes Impeller's modern Graphics APIs (like Metal and Vulkan) as its Rendering Backends to achieve high-performance UI rendering.
-
-Meanwhile, it remains agnostic to the Windowing System, allowing developers to freely integrate it with WSI layers like GLFW or native OS window handles.
+It exposes Impeller's C API to Zig while staying independent from any specific windowing system.
 
 ## Status
 
-Impeller currently appears to prioritize mobile platforms, and desktop support remains immature in practice. This repository focuses on desktop usage, so platform-specific issues are expected, especially on Linux.
-
-In local KDE Plasma testing, the Linux Vulkan path behaves differently across windowing platforms:
-
-- `x11` / XWayland: both the official Impeller Vulkan C sample and this Zig example render correctly
-- `wayland`: both the official sample and this repository may display a white window or missing geometry
-
-Because the same behavior can be reproduced in the upstream C sample, such issues should not automatically be attributed to defects in this repository's Zig bindings.
+- Most of `impeller.h` is already wrapped in Zig.
+- The Linux and macOS example paths are in place.
+- `FragmentProgram` wrappers exist, but they have not been validated end-to-end yet because this repository does not currently provide a reproducible `.frag` to `.iplr` build flow.
 
 ## Build and run
 
 If `-Dexample` is omitted, the build defaults to the current host platform.
 
-Build:
-
 ```bash
 zig build -Dexample=linux
 zig build -Dexample=macos
-```
 
-Run:
-
-```bash
 zig build run -Dexample=linux
 zig build run -Dexample=macos
 ```
 
+## Examples
+
+- Linux GLFW + Vulkan: [linux_glfw.zig](examples/linux/linux_glfw.zig)
+- macOS Metal: [macos_metal.zig](examples/macos/macos_metal.zig)
+
 ## Linux notes
 
-The Linux example uses GLFW for window creation and Vulkan surface integration. Rendering still uses Impeller's Vulkan backend.
+The Linux example uses GLFW for window creation and Impeller's Vulkan backend for rendering.
 
 Available GLFW modes:
 
 - `auto`
 - `x11`
 - `wayland`
-
-Examples:
 
 ```bash
 zig build -Dexample=linux -Dglfw=auto
@@ -56,7 +46,9 @@ zig build run -Dexample=linux -Dglfw=x11
 
 If the Linux example shows a white window or missing geometry, try `-Dglfw=x11` first.
 
-## Examples
+On local KDE Plasma testing:
 
-- Linux GLFW + Vulkan: `examples/linux/linux_glfw.zig`
-- macOS Metal: `examples/macos/macos_metal.zig`
+- `x11` / XWayland renders correctly
+- `wayland` may show a white window or missing geometry
+
+The same behavior can be reproduced in the upstream Impeller Vulkan C sample, so this should not automatically be treated as a Zig binding bug.
