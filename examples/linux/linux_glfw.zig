@@ -86,6 +86,79 @@ fn createDisplayList() !impeller.DisplayList {
     var blur = impeller.ImageFilter.initBlur(10.0, 10.0, impeller.c.kImpellerTileModeDecal);
     defer if (blur) |*value| value.deinit();
 
+    var blend_color_filter = try impeller.ColorFilter.initBlend(
+        impeller.srgb(1.0, 0.0, 1.0, 0.55),
+        impeller.c.kImpellerBlendModeSourceATop,
+    );
+    defer blend_color_filter.deinit();
+    blend_color_filter.retain();
+    defer blend_color_filter.deinit();
+
+    var grayscale_color_filter = try impeller.ColorFilter.initColorMatrix(impeller.colorMatrix(.{
+        0.2126, 0.7152, 0.0722, 0.0, 0.0,
+        0.2126, 0.7152, 0.0722, 0.0, 0.0,
+        0.2126, 0.7152, 0.0722, 0.0, 0.0,
+        0.0, 0.0, 0.0, 1.0, 0.0,
+    }));
+    defer grayscale_color_filter.deinit();
+
+    var reused_display_list = try createReusableDisplayList();
+    defer reused_display_list.deinit();
+
+    var triangle_builder = try impeller.PathBuilder.init();
+    defer triangle_builder.deinit();
+
+    triangle_builder.moveTo(impeller.point(500.0, 250.0));
+    triangle_builder.lineTo(impeller.point(535.0, 310.0));
+    triangle_builder.lineTo(impeller.point(465.0, 310.0));
+    triangle_builder.close();
+    var triangle_path = try triangle_builder.takePath(impeller.c.kImpellerFillTypeNonZero);
+    defer triangle_path.deinit();
+
+    var oval_builder = try impeller.PathBuilder.init();
+    defer oval_builder.deinit();
+
+    oval_builder.addOval(impeller.rect(630.0, 226.0, 72.0, 72.0));
+    var oval_path = try oval_builder.takePath(impeller.c.kImpellerFillTypeNonZero);
+    defer oval_path.deinit();
+
+    var quadratic_builder = try impeller.PathBuilder.init();
+    defer quadratic_builder.deinit();
+
+    quadratic_builder.moveTo(impeller.point(52.0, 360.0));
+    quadratic_builder.quadraticCurveTo(impeller.point(95.0, 308.0), impeller.point(138.0, 360.0));
+    var quadratic_path = try quadratic_builder.takePath(impeller.c.kImpellerFillTypeNonZero);
+    defer quadratic_path.deinit();
+
+    var cubic_builder = try impeller.PathBuilder.init();
+    defer cubic_builder.deinit();
+
+    cubic_builder.moveTo(impeller.point(170.0, 360.0));
+    cubic_builder.cubicCurveTo(
+        impeller.point(200.0, 300.0),
+        impeller.point(250.0, 420.0),
+        impeller.point(282.0, 360.0),
+    );
+    var cubic_path = try cubic_builder.takePath(impeller.c.kImpellerFillTypeNonZero);
+    defer cubic_path.deinit();
+
+    var arc_builder = try impeller.PathBuilder.init();
+    defer arc_builder.deinit();
+
+    arc_builder.addArc(impeller.rect(330.0, 320.0, 72.0, 72.0), 25.0, 320.0);
+    var arc_path = try arc_builder.takePath(impeller.c.kImpellerFillTypeNonZero);
+    defer arc_path.deinit();
+
+    var rounded_rect_path_builder = try impeller.PathBuilder.init();
+    defer rounded_rect_path_builder.deinit();
+
+    rounded_rect_path_builder.addRoundedRect(
+        impeller.rect(430.0, 324.0, 92.0, 64.0),
+        impeller.uniformRadii(20.0),
+    );
+    var rounded_rect_path = try rounded_rect_path_builder.takePath(impeller.c.kImpellerFillTypeNonZero);
+    defer rounded_rect_path.deinit();
+
     paint.setColor(impeller.srgb(1.0, 1.0, 1.0, 1.0));
     builder.drawPaint(paint);
 
@@ -157,6 +230,9 @@ fn createDisplayList() !impeller.DisplayList {
         paint,
     );
 
+    paint.setColor(impeller.srgb(0.9, 0.15, 0.2, 1.0));
+    builder.drawPath(triangle_path, paint);
+
     paint.setColor(impeller.srgb(0.1, 0.1, 0.1, 1.0));
     builder.drawRoundedRectDifference(
         impeller.rect(320, 214, 124, 72),
@@ -165,6 +241,73 @@ fn createDisplayList() !impeller.DisplayList {
         impeller.uniformRadii(10.0),
         paint,
     );
+
+    paint.setColor(impeller.srgb(0.1, 0.55, 0.95, 1.0));
+    builder.drawPath(oval_path, paint);
+
+    paint.setColor(impeller.srgb(0.95, 0.45, 0.2, 1.0));
+    builder.drawPath(quadratic_path, paint);
+
+    paint.setColor(impeller.srgb(0.2, 0.8, 0.45, 1.0));
+    builder.drawPath(cubic_path, paint);
+
+    paint.setColor(impeller.srgb(0.65, 0.3, 0.95, 1.0));
+    builder.drawPath(arc_path, paint);
+
+    paint.setColor(impeller.srgb(0.1, 0.7, 0.7, 1.0));
+    builder.drawPath(rounded_rect_path, paint);
+
+    builder.save();
+    builder.translate(560.0, 330.0);
+    builder.drawDisplayList(reused_display_list, 1.0);
+    builder.translate(88.0, 0.0);
+    builder.drawDisplayList(reused_display_list, 0.45);
+    builder.restore();
+
+    paint.setColor(impeller.srgb(0.25, 0.55, 0.95, 1.0));
+    builder.drawRoundedRect(
+        impeller.rect(40.0, 430.0, 100.0, 56.0),
+        impeller.uniformRadii(16.0),
+        paint,
+    );
+
+    paint.setColorFilter(blend_color_filter);
+    builder.drawRoundedRect(
+        impeller.rect(170.0, 430.0, 100.0, 56.0),
+        impeller.uniformRadii(16.0),
+        paint,
+    );
+
+    paint = try impeller.Paint.init();
+    defer paint.deinit();
+    paint.setColor(impeller.srgb(1.0, 0.75, 0.2, 1.0));
+    paint.setColorFilter(grayscale_color_filter);
+    builder.drawRoundedRect(
+        impeller.rect(300.0, 430.0, 100.0, 56.0),
+        impeller.uniformRadii(16.0),
+        paint,
+    );
+
+    return builder.build();
+}
+
+fn createReusableDisplayList() !impeller.DisplayList {
+    var builder = try impeller.DisplayListBuilder.init(null);
+    defer builder.deinit();
+
+    var paint = try impeller.Paint.init();
+    defer paint.deinit();
+
+    paint.setColor(impeller.srgb(0.95, 0.8, 0.15, 1.0));
+    builder.drawRoundedRect(
+        impeller.rect(0.0, 0.0, 52.0, 52.0),
+        impeller.uniformRadii(14.0),
+        paint,
+    );
+
+    paint.setColor(impeller.srgb(0.75, 0.2, 0.15, 1.0));
+    builder.drawRect(impeller.rect(18.0, 8.0, 16.0, 36.0), paint);
+    builder.drawRect(impeller.rect(8.0, 18.0, 36.0, 16.0), paint);
 
     return builder.build();
 }

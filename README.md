@@ -1,6 +1,10 @@
 # zig-impeller
 
-`zig-impeller` provides Zig bindings for the Impeller C API and a small set of desktop examples.
+A Zig binding for the Impeller rendering engine.
+
+It utilizes Impeller's modern Graphics APIs (like Metal and Vulkan) as its Rendering Backends to achieve high-performance UI rendering.
+
+Meanwhile, it remains agnostic to the Windowing System, allowing developers to freely integrate it with WSI layers like GLFW or native OS window handles.
 
 ## Status
 
