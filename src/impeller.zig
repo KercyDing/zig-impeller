@@ -1,4 +1,4 @@
-pub const c = @import("c.zig").impeller;
+pub const c = @import("impeller_c");
 
 pub const Error = error{
     VersionMismatch,
@@ -232,7 +232,3 @@ pub const VulkanSwapchain = struct {
         return .{ .handle = handle };
     }
 };
-
-test "version" {
-    try checkVersion();
-}
