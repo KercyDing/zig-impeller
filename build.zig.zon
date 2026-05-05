@@ -1,0 +1,13 @@
+.{
+    .name = .zig_impeller,
+    .version = "0.0.1",
+    .fingerprint = 0xe96800ad9c20f375,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "src",
+        "examples",
+        "vendor",
+    },
+}
