@@ -192,17 +192,17 @@ fn configureImpellerRuntime(run: *std.Build.Step.Run, sdk: ImpellerSdk) void {
 }
 
 fn resolveImpellerSdk(b: *std.Build, target: std.Target) ImpellerSdk {
-    const sdk_path = impellerSdkPath(target) orelse @panic("unsupported Impeller SDK target");
-    const sdk_root = b.fmt("vendor/impeller/{s}", .{sdk_path});
-    const lib_path = b.fmt("{s}/lib", .{sdk_root});
+    const include_path = b.path("vendor/impeller/include");
+    const lib_subpath = impellerLibOsDir(target) orelse @panic("unsupported Impeller SDK target");
+    const lib_path = b.fmt("vendor/impeller/lib/{s}", .{lib_subpath});
     return .{
-        .header = b.path(b.fmt("{s}/include/impeller.h", .{sdk_root})),
-        .include_path = b.path(b.fmt("{s}/include", .{sdk_root})),
+        .header = b.path("vendor/impeller/include/impeller.h"),
+        .include_path = include_path,
         .lib_path = b.path(lib_path),
         .lib_path_string = b.pathFromRoot(lib_path),
         .library = b.path(b.fmt("{s}/{s}", .{ lib_path, impellerLibraryName(target) })),
         .import_library = if (target.os.tag == .windows)
-            b.path(b.fmt("{s}/impeller.dll.lib", .{lib_path}))
+            b.path(b.fmt("{s}/{s}", .{ lib_path, impellerImportLibraryName(target) }))
         else
             null,
     };
@@ -210,29 +210,37 @@ fn resolveImpellerSdk(b: *std.Build, target: std.Target) ImpellerSdk {
 
 fn impellerLibraryName(target: std.Target) []const u8 {
     return switch (target.os.tag) {
-        .macos => "libimpeller.dylib",
-        .windows => "impeller.dll",
-        else => "libimpeller.so",
+        .macos => switch (target.cpu.arch) {
+            .aarch64 => "libimpeller-arm64.dylib",
+            .x86_64 => "libimpeller.dylib",
+            else => unreachable,
+        },
+        .windows => switch (target.cpu.arch) {
+            .aarch64 => "impeller-arm64.dll",
+            .x86_64 => "impeller-x64.dll",
+            else => unreachable,
+        },
+        else => switch (target.cpu.arch) {
+            .aarch64 => "libimpeller-arm64.so",
+            .x86_64 => "libimpeller.so",
+            else => unreachable,
+        },
     };
 }
 
-fn impellerSdkPath(target: std.Target) ?[]const u8 {
+fn impellerImportLibraryName(target: std.Target) []const u8 {
+    return switch (target.cpu.arch) {
+        .aarch64 => "impeller-arm64.dll.lib",
+        .x86_64 => "impeller-x64.dll.lib",
+        else => unreachable,
+    };
+}
+
+fn impellerLibOsDir(target: std.Target) ?[]const u8 {
     return switch (target.os.tag) {
-        .macos => switch (target.cpu.arch) {
-            .aarch64 => "darwin/arm64",
-            .x86_64 => "darwin/x64",
-            else => null,
-        },
-        .linux => switch (target.cpu.arch) {
-            .aarch64 => "linux/arm64",
-            .x86_64 => "linux/x64",
-            else => null,
-        },
-        .windows => switch (target.cpu.arch) {
-            .aarch64 => "windows/arm64",
-            .x86_64 => "windows/x64",
-            else => null,
-        },
+        .macos => "macos",
+        .linux => "linux",
+        .windows => "windows",
         else => null,
     };
 }
