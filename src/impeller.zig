@@ -200,6 +200,42 @@ pub const DisplayListBuilder = struct {
         c.ImpellerDisplayListBuilderDrawRect(self.handle, &local_rect, paint.handle);
     }
 
+    /// Draws an oval into the display list.
+    pub fn drawOval(self: DisplayListBuilder, oval_bounds: Rect, paint: Paint) void {
+        var local_rect = oval_bounds;
+        c.ImpellerDisplayListBuilderDrawOval(self.handle, &local_rect, paint.handle);
+    }
+
+    /// Draws a rounded rectangle into the display list.
+    pub fn drawRoundedRect(self: DisplayListBuilder, rectangle: Rect, radii: RoundingRadii, paint: Paint) void {
+        var local_rect = rectangle;
+        var local_radii = radii;
+        c.ImpellerDisplayListBuilderDrawRoundedRect(self.handle, &local_rect, &local_radii, paint.handle);
+    }
+
+    /// Draws the difference between two rounded rectangles.
+    pub fn drawRoundedRectDifference(
+        self: DisplayListBuilder,
+        outer_rect: Rect,
+        outer_radii: RoundingRadii,
+        inner_rect: Rect,
+        inner_radii: RoundingRadii,
+        paint: Paint,
+    ) void {
+        var local_outer_rect = outer_rect;
+        var local_outer_radii = outer_radii;
+        var local_inner_rect = inner_rect;
+        var local_inner_radii = inner_radii;
+        c.ImpellerDisplayListBuilderDrawRoundedRectDifference(
+            self.handle,
+            &local_outer_rect,
+            &local_outer_radii,
+            &local_inner_rect,
+            &local_inner_radii,
+            paint.handle,
+        );
+    }
+
     /// Draws a paint over the current clip.
     pub fn drawPaint(self: DisplayListBuilder, paint: Paint) void {
         c.ImpellerDisplayListBuilderDrawPaint(self.handle, paint.handle);
@@ -256,6 +292,30 @@ pub const DisplayListBuilder = struct {
     pub fn translate(self: DisplayListBuilder, x: f32, y: f32) void {
         c.ImpellerDisplayListBuilderTranslate(self.handle, x, y);
     }
+
+    /// Appends a transform to the current transform.
+    pub fn transform(self: DisplayListBuilder, matrix: Matrix) void {
+        var local_matrix = matrix;
+        c.ImpellerDisplayListBuilderTransform(self.handle, &local_matrix);
+    }
+
+    /// Replaces the current transform.
+    pub fn setTransform(self: DisplayListBuilder, matrix: Matrix) void {
+        var local_matrix = matrix;
+        c.ImpellerDisplayListBuilderSetTransform(self.handle, &local_matrix);
+    }
+
+    /// Returns the current transform.
+    pub fn getTransform(self: DisplayListBuilder) Matrix {
+        var matrix: Matrix = undefined;
+        c.ImpellerDisplayListBuilderGetTransform(self.handle, &matrix);
+        return matrix;
+    }
+
+    /// Resets the current transform to identity.
+    pub fn resetTransform(self: DisplayListBuilder) void {
+        c.ImpellerDisplayListBuilderResetTransform(self.handle);
+    }
 };
 
 pub const Surface = struct {
@@ -291,6 +351,23 @@ pub fn rect(x: f32, y: f32, width: f32, height: f32) Rect {
         .y = y,
         .width = width,
         .height = height,
+    };
+}
+
+pub fn point(x: f32, y: f32) Point {
+    return .{
+        .x = x,
+        .y = y,
+    };
+}
+
+pub fn uniformRadii(radius: f32) RoundingRadii {
+    const corner = point(radius, radius);
+    return .{
+        .top_left = corner,
+        .bottom_left = corner,
+        .top_right = corner,
+        .bottom_right = corner,
     };
 }
 

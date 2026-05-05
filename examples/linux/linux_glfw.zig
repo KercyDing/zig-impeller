@@ -131,7 +131,64 @@ fn createDisplayList() !impeller.DisplayList {
     builder.restoreToCount(layer_count);
     builder.restoreToCount(layer_base_count);
 
+    builder.save();
+    builder.setTransform(translationMatrix(680.0, 120.0));
+    paint.setColor(impeller.srgb(0.6, 0.0, 0.8, 1.0));
+    builder.drawRect(impeller.rect(-24, -24, 48, 48), paint);
+
+    const translated_matrix = builder.getTransform();
+    builder.transform(scaleMatrix(1.0, 1.8));
+    paint.setColor(impeller.srgb(1.0, 0.0, 1.0, 0.45));
+    builder.drawRect(impeller.rect(-24, -24, 48, 48), paint);
+
+    builder.setTransform(translated_matrix);
+    builder.resetTransform();
+    paint.setColor(impeller.srgb(0.0, 0.7, 0.9, 1.0));
+    builder.drawRect(impeller.rect(650, 180, 60, 24), paint);
+    builder.restore();
+
+    paint.setColor(impeller.srgb(0.95, 0.4, 0.1, 1.0));
+    builder.drawOval(impeller.rect(40, 220, 90, 60), paint);
+
+    paint.setColor(impeller.srgb(0.45, 0.2, 0.9, 1.0));
+    builder.drawRoundedRect(
+        impeller.rect(170, 220, 110, 60),
+        impeller.uniformRadii(18.0),
+        paint,
+    );
+
+    paint.setColor(impeller.srgb(0.1, 0.1, 0.1, 1.0));
+    builder.drawRoundedRectDifference(
+        impeller.rect(320, 214, 124, 72),
+        impeller.uniformRadii(22.0),
+        impeller.rect(344, 232, 76, 36),
+        impeller.uniformRadii(10.0),
+        paint,
+    );
+
     return builder.build();
+}
+
+fn translationMatrix(x: f32, y: f32) impeller.Matrix {
+    return .{
+        .m = .{
+            1.0, 0.0, 0.0, 0.0,
+            0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            x, y, 0.0, 1.0,
+        },
+    };
+}
+
+fn scaleMatrix(x: f32, y: f32) impeller.Matrix {
+    return .{
+        .m = .{
+            x, 0.0, 0.0, 0.0,
+            0.0, y, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0, 1.0,
+        },
+    };
 }
 
 fn configureGlfwPlatform() void {
