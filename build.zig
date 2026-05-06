@@ -36,6 +36,8 @@ pub fn build(b: *std.Build) void {
     const sdk = resolveImpellerSdk(b, options.target.result);
     const mod = addModule(b, options, sdk);
 
+    addTests(b, options, sdk, mod);
+
     const example = addExample(b, options, sdk, mod);
     b.installArtifact(example);
 
@@ -59,6 +61,31 @@ fn addModule(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk) *std.Build.
     });
     configureImpeller(mod, sdk);
     return mod;
+}
+
+fn addTests(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk, mod: *std.Build.Module) void {
+    const test_mod = b.createModule(.{
+        .root_source_file = b.path("tests/impeller_test.zig"),
+        .target = options.target,
+        .optimize = options.optimize,
+        .imports = &.{
+            .{ .name = "impeller", .module = mod },
+        },
+    });
+    configureImpeller(test_mod, sdk);
+
+    const tests = b.addTest(.{
+        .root_module = test_mod,
+        .use_llvm = true,
+        .use_lld = true,
+    });
+    linkImpeller(tests.root_module, sdk, options.target.result);
+
+    const run_tests = b.addRunArtifact(tests);
+    configureImpellerRuntime(run_tests, sdk);
+
+    const test_step = b.step("test", "Run unit tests");
+    test_step.dependOn(&run_tests.step);
 }
 
 fn addExample(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk, mod: *std.Build.Module) *std.Build.Step.Compile {
