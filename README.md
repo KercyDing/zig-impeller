@@ -24,7 +24,7 @@ Add the package with `zig fetch`:
 zig fetch --save git+https://github.com/KercyDing/zig-impeller#main
 ```
 
-Then add zig-impeller as a dependency and import its modules and artifact in your `build.zig`:
+Then add zig-impeller as a dependency and import its module in your `build.zig`:
 
 ```zig
 const impeller_dep = b.dependency("zig_impeller", .{
@@ -53,45 +53,81 @@ const impeller = @import("impeller");
 
 ## Minimal demo
 
-This is a minimal example that uses only the Zig wrapper types and helpers:
+Smallest Linux + GLFW + Vulkan example that actually draws a rectangle.
+
+This snippet needs a GLFW binding such as [glfw_zig](https://github.com/tiawl/glfw.zig) because it imports `glfw_c`. That dependency belongs to the application using zig-impeller.
 
 ```zig
-const std = @import("std");
 const impeller = @import("impeller");
+const glfw = @import("glfw_c");
 
 pub fn main() !void {
-    try impeller.checkVersion();
+    // Uncomment on some Wayland/KDE setups if the window is blank.
+    // glfw.glfwInitHint(glfw.GLFW_PLATFORM, glfw.GLFW_PLATFORM_X11);
+    _ = glfw.glfwInit();
+    defer glfw.glfwTerminate();
 
-    const color = impeller.srgb(0.2, 0.4, 1.0, 1.0);
-    const area = impeller.rect(20.0, 30.0, 120.0, 64.0);
-    const radii = impeller.uniformRadii(12.0);
-    const size = impeller.pixelSize(256, 256);
-    const descriptor = impeller.textureDescriptor(
-        impeller.pixel_formats.rgba8888,
-        size,
-        1,
-    );
+    glfw.glfwWindowHint(glfw.GLFW_CLIENT_API, glfw.GLFW_NO_API);
+    const window = glfw.glfwCreateWindow(800, 600, "impeller demo", null, null).?;
+    defer glfw.glfwDestroyWindow(window);
 
-    _ = color;
-    _ = area;
-    _ = radii;
-    _ = descriptor;
+    var context = try impeller.Context.initVulkan(.{
+        .user_data = null,
+        .proc_address_callback = VulkanProcResolver.resolve,
+        .enable_vulkan_validation = true,
+    });
+    defer context.deinit();
 
-    std.debug.print("Impeller runtime version: {d}\n", .{impeller.runtimeVersion()});
+    const info = context.vulkanInfo().?;
+    var vk_surface: glfw.VkSurfaceKHR = null;
+    _ = glfw.glfwCreateWindowSurface(@ptrCast(info.vk_instance), window, null, &vk_surface);
+
+    var swapchain = try impeller.VulkanSwapchain.init(context, @ptrCast(vk_surface));
+    defer swapchain.deinit();
+
+    var builder = try impeller.DisplayListBuilder.init(null);
+    defer builder.deinit();
+
+    var paint = try impeller.Paint.init();
+    defer paint.deinit();
+    paint.setColor(impeller.srgb(1.0, 1.0, 1.0, 1.0));
+    builder.drawPaint(paint);
+    paint.setColor(impeller.srgb(0.2, 0.4, 1.0, 1.0));
+    builder.drawRect(impeller.rect(120.0, 100.0, 240.0, 160.0), paint);
+
+    var list = try builder.build();
+    defer list.deinit();
+
+    while (glfw.glfwWindowShouldClose(window) == glfw.GLFW_FALSE) {
+        glfw.glfwPollEvents();
+        var surface = swapchain.acquireNextSurface() catch continue;
+        defer surface.deinit();
+        try surface.draw(list);
+        try surface.present();
+    }
 }
+
+const VulkanProcResolver = struct {
+    fn resolve(instance: ?*anyopaque, proc_name: [*c]const u8, user_data: ?*anyopaque) callconv(.c) ?*anyopaque {
+        _ = user_data;
+        return @ptrCast(@constCast(glfw.glfwGetInstanceProcAddress(
+            if (instance) |handle| @ptrCast(handle) else null,
+            proc_name,
+        )));
+    }
+};
 ```
 
-If you want a full rendering setup, see the platform examples below.
+For complete platform-specific setups, see the examples below.
 
 ## Build and run examples
 
-If `-Dexample` is omitted, the build defaults to the host platform.
-
 ```bash
 zig build test
-zig build -Dexample=<linux|macos|windows>
-zig build run -Dexample=<linux|macos|windows>
+zig build examples -Dplatform=<linux|macos|windows>
 ```
+
+The default `zig build` only builds the library artifact. The `examples` step pulls the GLFW example dependency and builds the selected platform example.
 
 ## Examples
 
@@ -110,7 +146,7 @@ Shared drawing code lives in [examples/common/draw.zig](examples/common/draw.zig
 The Linux example uses GLFW + Vulkan. Select the GLFW backend with `-Dglfw=<auto|x11|wayland>`:
 
 ```bash
-zig build run -Dexample=linux -Dglfw=x11
+zig build examples -Dplatform=linux -Dglfw=x11
 ```
 
 If the window renders white or geometry is missing, try `-Dglfw=x11` first. On KDE Plasma, x11 / XWayland works while wayland may show a blank window. The same issue reproduces in the upstream Impeller C sample, so it is not necessarily a binding bug.
