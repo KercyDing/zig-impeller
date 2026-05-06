@@ -114,6 +114,7 @@ fn addMacosGlfwExample(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk, m
         .optimize = options.optimize,
         .imports = &.{
             .{ .name = "impeller", .module = mod },
+            .{ .name = "common_draw", .module = addCommonDrawModule(b, options, sdk, mod) },
             .{ .name = "glfw_c", .module = glfw_c },
         },
     });
@@ -157,6 +158,7 @@ fn addLinuxGlfwExample(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk, m
         .optimize = options.optimize,
         .imports = &.{
             .{ .name = "impeller", .module = mod },
+            .{ .name = "common_draw", .module = addCommonDrawModule(b, options, sdk, mod) },
             .{ .name = "glfw_c", .module = glfw_c },
             .{ .name = "build_options", .module = linux_example_options.createModule() },
         },
@@ -200,6 +202,7 @@ fn addWindowsGlfwExample(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk,
         .optimize = options.optimize,
         .imports = &.{
             .{ .name = "impeller", .module = mod },
+            .{ .name = "common_draw", .module = addCommonDrawModule(b, options, sdk, mod) },
             .{ .name = "glfw_c", .module = glfw_c },
         },
     });
@@ -223,6 +226,19 @@ fn defaultExample(os_tag: std.Target.Os.Tag) Example {
         .windows => .windows,
         else => .linux,
     };
+}
+
+fn addCommonDrawModule(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk, mod: *std.Build.Module) *std.Build.Module {
+    const draw_mod = b.createModule(.{
+        .root_source_file = b.path("examples/common/draw.zig"),
+        .target = options.target,
+        .optimize = options.optimize,
+        .imports = &.{
+            .{ .name = "impeller", .module = mod },
+        },
+    });
+    configureImpeller(draw_mod, sdk);
+    return draw_mod;
 }
 
 fn addImpellerBindings(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk) *std.Build.Module {
