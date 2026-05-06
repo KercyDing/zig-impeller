@@ -17,15 +17,18 @@ If `-Dexample` is omitted, the build defaults to the current host platform.
 ```bash
 zig build -Dexample=linux
 zig build -Dexample=macos
+zig build -Dexample=windows
 
 zig build run -Dexample=linux
 zig build run -Dexample=macos
+zig build run -Dexample=windows
 ```
 
 ## Examples
 
 - Linux GLFW + Vulkan: [linux_glfw.zig](examples/linux/linux_glfw.zig)
 - macOS GLFW + Metal: [macos_glfw.zig](examples/macos/macos_glfw.zig)
+- Windows GLFW + Vulkan: [windows_glfw.zig](examples/windows/windows_glfw.zig)
 
 ## macOS notes
 
@@ -56,3 +59,11 @@ On local KDE Plasma testing:
 - `wayland` may show a white window or missing geometry
 
 The same behavior can be reproduced in the upstream Impeller Vulkan C sample, so this should not automatically be treated as a Zig binding bug.
+
+## Windows notes
+
+The Windows example uses GLFW for window creation and Impeller's Vulkan backend for rendering. The drawing pipeline mirrors the Linux example because Impeller ships only a Vulkan backend on Windows.
+
+Both `x86_64` and `aarch64` Windows targets are supported (the matching SDK lives under `vendor/impeller/lib/windows/{x64,arm64}`).
+
+The build step copies `impeller.dll` next to the produced executable, so a plain `zig build run -Dexample=windows` works out of the box. A working Vulkan ICD/loader (`vulkan-1.dll`) must still be available on the system &mdash; install a recent GPU driver or the official Vulkan SDK if Impeller fails to initialize the Vulkan context.
