@@ -53,9 +53,11 @@ fn addLibraryArtifact(b: *std.Build, mod: *std.Build.Module) void {
 }
 
 fn addExampleStep(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk, mod: *std.Build.Module) void {
-    const examples_step = b.step("examples", "Build the selected GLFW example");
+    const examples_step = b.step("examples", "Run the selected GLFW example");
     const example = addExample(b, options, sdk, mod) orelse return;
-    examples_step.dependOn(&b.addInstallArtifact(example, .{}).step);
+    const run_example = b.addRunArtifact(example);
+    configureImpellerRuntime(run_example, sdk);
+    examples_step.dependOn(&run_example.step);
 }
 
 fn addModule(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk) *std.Build.Module {
