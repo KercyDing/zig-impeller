@@ -2,6 +2,10 @@
 
 A Zig binding for the Impeller rendering engine on desktop (Linux, macOS, Windows). Exposes Impeller's C API while staying independent of any windowing system.
 
+<p align="left">
+  <img src="https://github.com/user-attachments/assets/938615ee-55aa-4a76-a106-c778151ede53" width="400">
+</p>
+
 ## Status
 
 - `impeller.h` is largely wrapped in Zig.
