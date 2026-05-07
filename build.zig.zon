@@ -1,20 +1,12 @@
 .{
     .name = .zig_impeller,
     .version = "0.0.1",
-    .fingerprint = 0xe96800ad9c20f375,
+    .fingerprint = 0xe96800ad1f454f10,
     .minimum_zig_version = "0.16.0",
-    .dependencies = .{
-        .glfw_zig = .{
-            .url = "git+https://github.com/tiawl/glfw.zig?ref=zig-stable#32a093cd869a0694ca2c0306680f7c7bc5dcd0b9",
-            .hash = "glfw_zig-1.0.0-NrvYoyvRGQDgKTTvaAaJLZWQsL6AL5F8jGsBla2V275Y",
-            .lazy = true,
-        },
-    },
     .paths = .{
         "build.zig",
         "src",
         "tests",
-        "examples",
         "vendor",
     },
 }

@@ -3,19 +3,6 @@ const std = @import("std");
 const BuildOptions = struct {
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
-    platform: Platform,
-};
-
-const Platform = enum {
-    linux,
-    macos,
-    windows,
-};
-
-const LinuxGlfwPlatform = enum {
-    auto,
-    x11,
-    wayland,
 };
 
 const ImpellerSdk = struct {
@@ -30,24 +17,16 @@ const ImpellerSdk = struct {
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const build_tests = b.option(bool, "tests", "Build impeller tests") orelse true;
-    const build_examples = b.option(bool, "examples", "Build GLFW examples") orelse false;
     const options: BuildOptions = .{
         .target = target,
         .optimize = optimize,
-        .platform = b.option(Platform, "platform", "Example platform to build (linux, macos, windows)") orelse defaultPlatform(b.graph.host.result.os.tag),
     };
 
     const sdk = resolveImpellerSdk(b, target.result);
     const mod = addModule(b, options, sdk);
 
     addLibraryArtifact(b, mod);
-    if (build_tests) {
-        addTests(b, options, sdk, mod);
-    }
-    if (build_examples) {
-        addExampleStep(b, options, sdk, mod);
-    }
+    addTests(b, options, sdk, mod);
 }
 
 fn addLibraryArtifact(b: *std.Build, mod: *std.Build.Module) void {
@@ -56,14 +35,6 @@ fn addLibraryArtifact(b: *std.Build, mod: *std.Build.Module) void {
         .root_module = mod,
     });
     b.installArtifact(lib);
-}
-
-fn addExampleStep(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk, mod: *std.Build.Module) void {
-    const examples_step = b.step("examples", "Run the selected GLFW example");
-    const example = addExample(b, options, sdk, mod) orelse return;
-    const run_example = b.addRunArtifact(example);
-    configureImpellerRuntime(run_example, sdk);
-    examples_step.dependOn(&run_example.step);
 }
 
 fn addModule(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk) *std.Build.Module {
@@ -105,156 +76,6 @@ fn addTests(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk, mod: *std.Bu
     test_step.dependOn(&run_tests.step);
 }
 
-fn addExample(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk, mod: *std.Build.Module) ?*std.Build.Step.Compile {
-    return switch (options.platform) {
-        .macos => addMacosGlfwExample(b, options, sdk, mod),
-        .linux => addLinuxGlfwExample(b, options, sdk, mod),
-        .windows => addWindowsGlfwExample(b, options, sdk, mod),
-    };
-}
-
-fn addMacosGlfwExample(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk, mod: *std.Build.Module) ?*std.Build.Step.Compile {
-    if (options.target.result.os.tag != .macos) {
-        @panic("-Dexample=macos requires a macOS target");
-    }
-
-    const glfw_dep = b.lazyDependency("glfw_zig", .{
-        .target = options.target,
-        .optimize = options.optimize,
-    }) orelse return null;
-    const glfw_lib = glfw_dep.artifact("glfw");
-    const glfw_c = addGlfwBindings(b, options, glfw_dep, glfw_lib, .macos);
-
-    const example_mod = b.createModule(.{
-        .root_source_file = b.path("examples/macos/macos_glfw.zig"),
-        .target = options.target,
-        .optimize = options.optimize,
-        .imports = &.{
-            .{ .name = "impeller", .module = mod },
-            .{ .name = "common_draw", .module = addCommonDrawModule(b, options, sdk, mod) },
-            .{ .name = "glfw_c", .module = glfw_c },
-        },
-    });
-    configureImpeller(example_mod, sdk);
-    example_mod.addCSourceFile(.{
-        .file = b.path("examples/macos/macos_glfw_metal.m"),
-        .flags = &.{ "-fobjc-arc", "-Wno-deprecated-declarations", "-Wno-unguarded-availability-new" },
-        .language = .objective_c,
-    });
-    example_mod.linkFramework("AppKit", .{});
-    example_mod.linkFramework("Metal", .{});
-    example_mod.linkFramework("QuartzCore", .{});
-
-    const example = b.addExecutable(.{
-        .name = "macos-glfw",
-        .root_module = example_mod,
-    });
-    example.root_module.linkLibrary(glfw_lib);
-    return example;
-}
-
-fn addLinuxGlfwExample(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk, mod: *std.Build.Module) ?*std.Build.Step.Compile {
-    if (options.target.result.os.tag != .linux or options.target.result.cpu.arch != .x86_64) {
-        @panic("-Dexample=linux requires a linux x86_64 target");
-    }
-
-    const glfw_platform = b.option(LinuxGlfwPlatform, "glfw", "GLFW platform for the Linux desktop example (auto, x11, wayland)") orelse .auto;
-    const glfw_dep = b.lazyDependency("glfw_zig", .{
-        .target = options.target,
-        .optimize = options.optimize,
-    }) orelse return null;
-    const glfw_lib = glfw_dep.artifact("glfw");
-    const glfw_c = addGlfwBindings(b, options, glfw_dep, glfw_lib, .linux);
-    const linux_example_options = b.addOptions();
-    linux_example_options.addOption(LinuxGlfwPlatform, "glfw", glfw_platform);
-
-    const example_mod = b.createModule(.{
-        .root_source_file = b.path("examples/linux/linux_glfw.zig"),
-        .target = options.target,
-        .optimize = options.optimize,
-        .imports = &.{
-            .{ .name = "impeller", .module = mod },
-            .{ .name = "common_draw", .module = addCommonDrawModule(b, options, sdk, mod) },
-            .{ .name = "glfw_c", .module = glfw_c },
-            .{ .name = "build_options", .module = linux_example_options.createModule() },
-        },
-    });
-    configureImpeller(example_mod, sdk);
-
-    const example = b.addExecutable(.{
-        .name = "linux-glfw",
-        .root_module = example_mod,
-        .use_llvm = true,
-        .use_lld = true,
-    });
-    example.root_module.linkLibrary(glfw_lib);
-    linkLinuxVulkanExample(example);
-    return example;
-}
-
-/// Builds the GLFW + Vulkan example targeting Windows desktop.
-/// Reuses the Vulkan-backed Impeller swapchain pipeline from the Linux example;
-/// no Vulkan loader linking is required because GLFW dynamically loads
-/// `vulkan-1.dll` at runtime via `glfwGetInstanceProcAddress`.
-fn addWindowsGlfwExample(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk, mod: *std.Build.Module) ?*std.Build.Step.Compile {
-    if (options.target.result.os.tag != .windows) {
-        @panic("-Dexample=windows requires a windows target");
-    }
-    if (options.target.result.cpu.arch != .x86_64 and options.target.result.cpu.arch != .aarch64) {
-        @panic("-Dexample=windows requires an x86_64 or aarch64 target");
-    }
-
-    const glfw_dep = b.lazyDependency("glfw_zig", .{
-        .target = options.target,
-        .optimize = options.optimize,
-    }) orelse return null;
-    const glfw_lib = glfw_dep.artifact("glfw");
-    const glfw_c = addGlfwBindings(b, options, glfw_dep, glfw_lib, .windows);
-
-    const example_mod = b.createModule(.{
-        .root_source_file = b.path("examples/windows/windows_glfw.zig"),
-        .target = options.target,
-        .optimize = options.optimize,
-        .imports = &.{
-            .{ .name = "impeller", .module = mod },
-            .{ .name = "common_draw", .module = addCommonDrawModule(b, options, sdk, mod) },
-            .{ .name = "glfw_c", .module = glfw_c },
-        },
-    });
-    configureImpeller(example_mod, sdk);
-
-    const example = b.addExecutable(.{
-        .name = "windows-glfw",
-        .root_module = example_mod,
-        .use_llvm = true,
-        .use_lld = true,
-    });
-    example.root_module.linkLibrary(glfw_lib);
-    installImpellerRuntimeDll(b, sdk, options.target.result);
-    return example;
-}
-
-fn defaultPlatform(os_tag: std.Target.Os.Tag) Platform {
-    return switch (os_tag) {
-        .macos => .macos,
-        .windows => .windows,
-        else => .linux,
-    };
-}
-
-fn addCommonDrawModule(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk, mod: *std.Build.Module) *std.Build.Module {
-    const draw_mod = b.createModule(.{
-        .root_source_file = b.path("examples/common/draw.zig"),
-        .target = options.target,
-        .optimize = options.optimize,
-        .imports = &.{
-            .{ .name = "impeller", .module = mod },
-        },
-    });
-    configureImpeller(draw_mod, sdk);
-    return draw_mod;
-}
-
 fn addImpellerBindings(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk) *std.Build.Module {
     const translate = b.addTranslateC(.{
         .root_source_file = sdk.header,
@@ -263,35 +84,6 @@ fn addImpellerBindings(b: *std.Build, options: BuildOptions, sdk: ImpellerSdk) *
     });
     translate.addIncludePath(sdk.include_path);
     return translate.createModule();
-}
-
-fn addGlfwBindings(
-    b: *std.Build,
-    options: BuildOptions,
-    glfw_dep: *std.Build.Dependency,
-    glfw_lib: *std.Build.Step.Compile,
-    platform: Platform,
-) *std.Build.Module {
-    const translate = b.addTranslateC(.{
-        .root_source_file = glfw_dep.path("glfw/include/GLFW/glfw3.h"),
-        .target = options.target,
-        .optimize = options.optimize,
-    });
-    if (platform == .linux or platform == .windows) {
-        translate.defineCMacro("GLFW_INCLUDE_VULKAN", null);
-        // GLFW's installed header tree includes the bundled Vulkan headers
-        // (via the vulkan_zig dependency), so translate-c can resolve
-        // `<vulkan/vulkan.h>` without relying on system include paths.
-        translate.addIncludePath(glfw_lib.getEmittedIncludeTree());
-    }
-    return translate.createModule();
-}
-
-fn linkLinuxVulkanExample(exe: *std.Build.Step.Compile) void {
-    exe.root_module.linkSystemLibrary("vulkan", .{});
-    exe.root_module.linkSystemLibrary("dl", .{});
-    exe.root_module.linkSystemLibrary("pthread", .{});
-    exe.root_module.linkSystemLibrary("m", .{});
 }
 
 fn configureImpeller(module: *std.Build.Module, sdk: ImpellerSdk) void {
@@ -310,18 +102,7 @@ fn linkImpeller(module: *std.Build.Module, sdk: ImpellerSdk, target: std.Target)
 fn configureImpellerRuntime(run: *std.Build.Step.Run, sdk: ImpellerSdk) void {
     run.setEnvironmentVariable("DYLD_LIBRARY_PATH", sdk.lib_path_string);
     run.setEnvironmentVariable("LD_LIBRARY_PATH", sdk.lib_path_string);
-    // Windows resolves DLLs via the executable directory and PATH; the DLL is
-    // installed alongside the executable (see installImpellerRuntimeDll), but
-    // we also extend PATH so child processes locate the runtime as well.
     run.addPathDir(sdk.lib_path_string);
-}
-
-/// Installs `impeller.dll` next to the executable so Windows runs can locate
-/// it through the standard PE search order. No-op on non-Windows targets.
-fn installImpellerRuntimeDll(b: *std.Build, sdk: ImpellerSdk, target: std.Target) void {
-    if (target.os.tag != .windows) return;
-    const install = b.addInstallBinFile(sdk.library, "impeller.dll");
-    b.getInstallStep().dependOn(&install.step);
 }
 
 fn resolveImpellerSdk(b: *std.Build, target: std.Target) ImpellerSdk {
