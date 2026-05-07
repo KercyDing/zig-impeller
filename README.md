@@ -6,6 +6,8 @@ Zig bindings for Impeller's standalone `impeller.h` API.
   <img src="https://github.com/user-attachments/assets/938615ee-55aa-4a76-a106-c778151ede53" width="400">
 </p>
 
+> Examples [here](https://github.com/KercyDing/zig-impeller-examples).
+
 ## Features
 
 - Linux + Vulkan
