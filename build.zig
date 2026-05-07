@@ -30,6 +30,8 @@ const ImpellerSdk = struct {
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const build_tests = b.option(bool, "tests", "Build impeller tests") orelse true;
+    const build_examples = b.option(bool, "examples", "Build GLFW examples") orelse false;
     const options: BuildOptions = .{
         .target = target,
         .optimize = optimize,
@@ -40,8 +42,12 @@ pub fn build(b: *std.Build) void {
     const mod = addModule(b, options, sdk);
 
     addLibraryArtifact(b, mod);
-    addTests(b, options, sdk, mod);
-    addExampleStep(b, options, sdk, mod);
+    if (build_tests) {
+        addTests(b, options, sdk, mod);
+    }
+    if (build_examples) {
+        addExampleStep(b, options, sdk, mod);
+    }
 }
 
 fn addLibraryArtifact(b: *std.Build, mod: *std.Build.Module) void {
