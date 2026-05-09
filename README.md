@@ -84,3 +84,7 @@ Runnable GLFW examples now live in the separate `zig-impeller-examples` reposito
 - All of `impeller.h` is wrapped
 - `zig build test` runs unit tests
 - `FragmentProgram` is wrapped, but shader packaging is not documented here yet
+
+## LICENSE
+
+[MIT](LICENSE)
